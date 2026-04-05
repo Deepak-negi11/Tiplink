@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  postgres-main:
+    image: postgres:15
+    container_name: tiplink_main
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tiplink_main
+    ports:
+      - "5433:5432"
+
+  postgres-mpc1:
+    image: postgres:15
+    container_name: tiplink_mpc1
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tiplink_mpc1
+    ports:
+      - "5436:5432"
+
+  postgres-mpc2:
+    image: postgres:15
+    container_name: tiplink_mpc2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tiplink_mpc2
+    ports:
+      - "5437:5432"
+
+  postgres-mpc3:
+    image: postgres:15
+    container_name: tiplink_mpc3
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tiplink_mpc3
+    ports:
+      - "5438:5432"
