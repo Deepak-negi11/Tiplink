@@ -1,0 +1,1 @@
+POST /sign/init, /sign/commit, /sign/reveal, /sign/partial

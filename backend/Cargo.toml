@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+actix-web = "4.13.0"
+chrono = "0.4.44"
+serde = "1.0.228"
+serde_json = "1.0.149"
+diesel = { version = "2.2.0", features = ["postgres", "uuid", "chrono", "numeric"] }
+uuid = { version = "1.12.1", features = ["serde", "v4"] }
+bigdecimal = "0.4.7"
+dotenvy = "0.15.7"

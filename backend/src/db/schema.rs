@@ -17,16 +17,16 @@ pub mod sql_types {
 diesel::table! {
     balances (id) {
         id -> Uuid,
-        amount -> Nullable<Int8>,
-        user_id -> Nullable<Uuid>,
+        amount -> Int8,
+        user_id -> Uuid,
         #[max_length = 44]
-        token_mint -> Nullable<Varchar>,
+        token_mint -> Varchar,
         #[max_length = 44]
-        token_symbol -> Nullable<Varchar>,
-        locked -> Nullable<Int8>,
-        available -> Nullable<Int8>,
-        decimals -> Nullable<Int2>,
-        updated_at -> Nullable<Timestamptz>,
+        token_symbol -> Varchar,
+        locked -> Int8,
+        available -> Int8,
+        decimals -> Int2,
+        updated_at -> Timestamptz,
     }
 }
 
@@ -62,13 +62,13 @@ diesel::table! {
 diesel::table! {
     sessions (id) {
         id -> Uuid,
-        user_id -> Nullable<Uuid>,
+        user_id -> Uuid,
         refresh_token -> Text,
         device_info -> Nullable<Text>,
         ip_address -> Nullable<Inet>,
         revoked_at -> Nullable<Timestamptz>,
         expires_at -> Timestamptz,
-        created_at -> Nullable<Timestamptz>,
+        created_at -> Timestamptz,
     }
 }
 
@@ -78,19 +78,19 @@ diesel::table! {
 
     swap_history (id) {
         id -> Uuid,
-        user_id -> Nullable<Uuid>,
+        user_id -> Uuid,
         #[max_length = 44]
-        input_mint -> Nullable<Varchar>,
+        input_mint -> Varchar,
         #[max_length = 44]
-        output_mint -> Nullable<Varchar>,
-        output_amount -> Nullable<Int8>,
-        input_amount -> Nullable<Int8>,
-        fee_amount -> Nullable<Int8>,
-        price_impact -> Nullable<Numeric>,
+        output_mint -> Varchar,
+        output_amount -> Int8,
+        input_amount -> Int8,
+        fee_amount -> Int8,
+        price_impact -> Numeric,
         #[max_length = 88]
-        tx_hash -> Nullable<Varchar>,
-        status -> Nullable<SwapStaus>,
-        created_at -> Nullable<Timestamptz>,
+        tx_hash -> Varchar,
+        status -> SwapStaus,
+        created_at -> Timestamptz,
         confirmed_at -> Nullable<Timestamptz>,
     }
 }
@@ -101,21 +101,21 @@ diesel::table! {
 
     transactions (id) {
         id -> Uuid,
-        user_id -> Nullable<Uuid>,
-        amount -> Nullable<Int8>,
+        user_id -> Uuid,
+        amount -> Int8,
         #[max_length = 44]
-        token_mint -> Nullable<Varchar>,
+        token_mint -> Varchar,
         #[max_length = 44]
-        token_symbol -> Nullable<Varchar>,
+        token_symbol -> Varchar,
         #[max_length = 88]
-        tx_hash -> Nullable<Varchar>,
-        tx_type -> Nullable<TxType>,
+        tx_hash -> Varchar,
+        tx_type -> TxType,
         #[max_length = 44]
-        from_address -> Nullable<Varchar>,
+        from_address -> Varchar,
         #[max_length = 44]
-        to_address -> Nullable<Varchar>,
-        slot -> Nullable<Int8>,
-        block_time -> Nullable<Timestamptz>,
+        to_address -> Varchar,
+        slot -> Int8,
+        block_time -> Timestamptz,
     }
 }
 
@@ -125,19 +125,14 @@ diesel::table! {
         #[max_length = 255]
         email -> Varchar,
         password -> Text,
-        created_at -> Nullable<Timestamptz>,
-        updated_at -> Nullable<Timestamptz>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
         balance -> Numeric,
-        is_active -> Nullable<Bool>,
+        is_active -> Bool,
         #[max_length = 44]
         public_key -> Varchar,
     }
 }
-
-diesel::joinable!(balances -> users (user_id));
-diesel::joinable!(sessions -> users (user_id));
-diesel::joinable!(swap_history -> users (user_id));
-diesel::joinable!(transactions -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     balances,
