@@ -72,3 +72,44 @@ pub async fn get_quote(
         Err(AppError::ExternalApi(format!("Jupiter quote API returned an error: {}", response.status())))
     }
 }
+
+pub async fn get_swap_transaction(
+    quote: JupiterQuote,
+    user_pubkey: &str
+) -> Result<Vec<u8>, AppError> {
+    let client = Client::new();
+    let url = "https://quote-api.jup.ag/v6/swap";
+    
+    let swap_req = SwapRequest {
+        quote_response: quote,
+        user_public_key: user_pubkey.to_string(),
+        wrap_and_unwrap_sol: true,
+    };
+    
+    let response = client
+        .post(url)
+        .json(&swap_req)
+        .send()
+        .await
+        .map_err(|_| AppError::ExternalApi("Failed to request Jupiter swap endpoint".to_string()))?;
+        
+    if response.status().is_success() {
+        let swap_res: SwapResponse = response.json().await
+            .map_err(|_| AppError::ExternalApi("Failed to parse Jupiter swap payload".to_string()))?;
+            
+        let decoded_tx_bytes = base64::decode(&swap_res.swap_transaction)
+            .map_err(|_| AppError::ExternalApi("Failed to decode Jupiter base64 transaction string".to_string()))?;
+            
+        Ok(decoded_tx_bytes)
+    } else {
+        Err(AppError::ExternalApi(format!("Jupiter swap API returned an error: {}", response.status())))
+    }
+}
+
+pub fn calculate_fee(amount: u64, fee_bps: u16) -> (u64, u64) {
+    // Math bounds shifted to u128 safely preventing any extreme transaction u64 overflow
+    let fee_amount = (amount as u128 * fee_bps as u128 / 10000) as u64;
+    let amount_after_fee = amount - fee_amount;
+    
+    (amount_after_fee, fee_amount)
+}
