@@ -1,46 +1,45 @@
-// insert user , find by email , find by id
-
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
 use crate::db::schema::users;
 
-
-#[derive(Queryable, Selectable, Identifiable, Debug, Clone)]
+#[derive(Queryable, Selectable, Identifiable, Debug, Clone, Serialize, Deserialize)]
 #[diesel(table_name = users)]
 pub struct User {
     pub id: Uuid,
     pub email: String,
+    #[serde(skip_serializing)]
     pub password: String,
-    pub created_at: Option<DateTime<Utc>>,
-    pub updated_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub balance: BigDecimal,
-    pub is_active: Option<bool>,
+    pub is_active: bool,
     pub public_key: String,
 }
 
-#[derive(Insertable, Debug)]
+#[derive(Insertable, Debug, Serialize, Deserialize)]
 #[diesel(table_name = users)]
 pub struct NewUser<'a> {
     pub email: &'a str,
     pub password: &'a str,
-    pub public_key : &'a str
+    pub public_key: &'a str,
 }
 
 impl User {
-   
+    /// Create a new user entry
     pub fn signup(
-        conn: &mut PgConnection,   
-        email:&str,
-        password:&str,
-        public_key:&str
+        conn: &mut PgConnection,
+        email: &str,
+        password: &str,
+        public_key: &str,
     ) -> QueryResult<User> {
-
-        let new_user = NewUser{
+        let new_user = NewUser {
             email,
             password,
-            public_key
+            public_key,
         };
 
         diesel::insert_into(users::table)
@@ -49,13 +48,13 @@ impl User {
             .get_result(conn)
     }
 
-    /// "Signin" - Find a user by their email to verify their password
-    pub fn signin(
+    /// Find a user by their email
+    pub fn find_by_email(
         conn: &mut PgConnection,
-        user_email: &str,
+        email_val: &str,
     ) -> QueryResult<Option<User>> {
         users::table
-            .filter(users::email.eq(user_email))
+            .filter(users::email.eq(email_val))
             .select(User::as_select())
             .first(conn)
             .optional()
@@ -66,7 +65,6 @@ impl User {
         conn: &mut PgConnection,
         user_id: Uuid,
     ) -> QueryResult<Option<User>> {
-        
         users::table
             .find(user_id)
             .select(User::as_select())
@@ -74,5 +72,13 @@ impl User {
             .optional()
     }
 
-    
+    /// Check if a user with the given email exists
+    pub fn exists_by_email(
+        conn: &mut PgConnection,
+        email_val: &str,
+    ) -> QueryResult<bool> {
+        use diesel::dsl::{exists, select};
+        select(exists(users::table.filter(users::email.eq(email_val))))
+            .get_result(conn)
+    }
 }

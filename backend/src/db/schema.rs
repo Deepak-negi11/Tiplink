@@ -6,8 +6,8 @@ pub mod sql_types {
     pub struct LinkStatus;
 
     #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
-    #[diesel(postgres_type(name = "swap_staus"))]
-    pub struct SwapStaus;
+    #[diesel(postgres_type(name = "swap_status"))]
+    pub struct SwapStatus;
 
     #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "tx_type"))]
@@ -74,7 +74,7 @@ diesel::table! {
 
 diesel::table! {
     use diesel::sql_types::*;
-    use super::sql_types::SwapStaus;
+    use super::sql_types::SwapStatus;
 
     swap_history (id) {
         id -> Uuid,
@@ -89,9 +89,24 @@ diesel::table! {
         price_impact -> Numeric,
         #[max_length = 88]
         tx_hash -> Varchar,
-        status -> SwapStaus,
+        status -> SwapStatus,
         created_at -> Timestamptz,
         confirmed_at -> Nullable<Timestamptz>,
+        requested_slippage_bps -> Int4,
+    }
+}
+
+diesel::table! {
+    transaction_intents (id) {
+        id -> Uuid,
+        user_id -> Nullable<Uuid>,
+        intent_message -> Text,
+        intent_signature -> Text,
+        unsigned_payload -> Nullable<Text>,
+        #[max_length = 50]
+        status -> Nullable<Varchar>,
+        final_tx_hash -> Nullable<Text>,
+        created_at -> Nullable<Timestamp>,
     }
 }
 
@@ -134,11 +149,14 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(transaction_intents -> users (user_id));
+
 diesel::allow_tables_to_appear_in_same_query!(
     balances,
     payment_links,
     sessions,
     swap_history,
+    transaction_intents,
     transactions,
     users,
 );

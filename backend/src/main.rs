@@ -1,17 +1,24 @@
-use actix-web::{web::Data,App , HttpServer}
+use actix_web::{web::Data, App, HttpServer};
 
+mod config;
+mod db;
+mod error;
+mod handlers;
+mod middleware;
+mod models;
+mod routes;
+mod services;
 
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let pool = db::conn::create_pool();
 
-
-#[actix-web::main]
-async fn main()->std::io::Result<()>{
-    let config = Config::from_env();
-    let db_pool = db::create
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         App::new()
-            .service
+            .app_data(Data::new(pool.clone()))
+            .configure(routes::init_routes)
     })
-    .bind("127.0.0.1:8080")?
+    .bind(("127.0.0.1", 8080))?
     .run()
     .await
 }

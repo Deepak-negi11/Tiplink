@@ -1,11 +1,12 @@
-#get balance , lock , unlock , update
-
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
 use crate::db::schema::balances;
 
-
+#[derive(Queryable, Selectable, Identifiable, Debug, Serialize, Deserialize)]
+#[diesel(table_name = balances)]
 pub struct Balance {
     pub id: Uuid,
     pub amount: i64,
@@ -18,77 +19,142 @@ pub struct Balance {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Insertable, Debug, Serialize, Deserialize)]
+#[diesel(table_name = balances)]
+pub struct NewBalance<'a> {
+    pub user_id: Uuid,
+    pub token_mint: &'a str,
+    pub token_symbol: &'a str,
+    pub amount: i64,
+    pub available: i64,
+    pub locked: i64,
+    pub decimals: i16,
+}
 
 impl Balance {
-
-    pub fn get_balance(
-        conn:&mut PgConnection,
-        user_id: Uuid
-    )->QueryResult<Balance>{
-
+    /// Retrieve all balances for a specific user
+    pub fn get_user_balances(
+        conn: &mut PgConnection,
+        user_id_val: Uuid,
+    ) -> QueryResult<Vec<Balance>> {
         balances::table
-            .filter(balances::user_id.eq(user_id))
+            .filter(balances::user_id.eq(user_id_val))
             .select(Balance::as_select())
-            .load::<Balance>(conn)
-            
-
+            .load(conn)
     }
 
+    /// Retrieve a specific token balance for a user
+    pub fn get_token_balance(
+        conn: &mut PgConnection,
+        user_id_val: Uuid,
+        mint: &str,
+    ) -> QueryResult<Option<Balance>> {
+        balances::table
+            .filter(balances::user_id.eq(user_id_val))
+            .filter(balances::token_mint.eq(mint))
+            .select(Balance::as_select())
+            .first(conn)
+            .optional()
+    }
+
+    /// Lock funds for a payment link (moves funds from available to locked)
     pub fn lock_funds(
-        conn:&mut PgConnection,
-        user_id_val:Uuid,
-        amount_to_lock:i64,
-        token_mint:String,
-        token_sybol:String
-    )->Result<(),String>{
-        let updated_rows = diesel::update(
+        conn: &mut PgConnection,
+        user_id_val: Uuid,
+        mint: &str,
+        amount_to_lock: i64,
+    ) -> QueryResult<usize> {
+        diesel::update(
             balances::table
                 .filter(balances::user_id.eq(user_id_val))
-                .filter(balances::token_mint.eq(token_mint))
-                .filter(balances::available.get(amount_to_lock))
+                .filter(balances::token_mint.eq(mint))
+                .filter(balances::available.ge(amount_to_lock)),
         )
         .set((
             balances::available.eq(balances::available - amount_to_lock),
-            balances::locked.eq(balances::locked + amount_to_lock)
+            balances::locked.eq(balances::locked + amount_to_lock),
+            balances::updated_at.eq(Utc::now()),
         ))
         .execute(conn)
-        .map_err(|e| e.to_string())?;
-
-        if updated_rows == 0 {
-            return Err("Insufficent available balance " .to_string())
-        }
-        Ok(())
     }
 
-    pub fn unlock_funds(
-        conn:&mut PgConnection,
-        user_id_unlock:Uuid,
-        token_mint:String,
-        amount_to_claim:i64
-    )-> Result<() , String>{
-
-        let unlock = diesel::update(
+    /// Finalize a claim (permanently removes funds from locked and total amount)
+    pub fn finalize_claim(
+        conn: &mut PgConnection,
+        user_id_val: Uuid,
+        mint: &str,
+        amount_to_claim: i64,
+    ) -> QueryResult<usize> {
+        diesel::update(
             balances::table
-                .filter(balances::user_id.eq(user_id_unlock))
-                .filter(balances::token_mint.eq(token_mint))
-                .filter(balances::locked.get(amount_to_claim))
+                .filter(balances::user_id.eq(user_id_val))
+                .filter(balances::token_mint.eq(mint))
+                .filter(balances::locked.ge(amount_to_claim)),
         )
         .set((
-            balances::available.eq(available + amount_to_claim),
-            balances::locked.eq(locked - amount_to_claim)
+            balances::locked.eq(balances::locked - amount_to_claim),
+            balances::amount.eq(balances::amount - amount_to_claim),
+            balances::updated_at.eq(Utc::now()),
         ))
         .execute(conn)
-        .map_err(|e| e.to_string())?;
-        if unlock == 0 {
-            return Err("Insufficient locked balance".to_string());
-        }
-        Ok(())
     }
 
-    pub fn update_balance(
-        conn:PgConnection,
-        amount
-    )
+    /// Refund locked funds back to available (e.g., link expired or cancelled)
+    pub fn refund_locked_funds(
+        conn: &mut PgConnection,
+        user_id_val: Uuid,
+        mint: &str,
+        amount_to_refund: i64,
+    ) -> QueryResult<usize> {
+        diesel::update(
+            balances::table
+                .filter(balances::user_id.eq(user_id_val))
+                .filter(balances::token_mint.eq(mint))
+                .filter(balances::locked.ge(amount_to_refund)),
+        )
+        .set((
+            balances::locked.eq(balances::locked - amount_to_refund),
+            balances::available.eq(balances::available + amount_to_refund),
+            balances::updated_at.eq(Utc::now()),
+        ))
+        .execute(conn)
+    }
 
+    /// Upsert balance (used for deposits or internal transfers)
+    pub fn add_balance(
+        conn: &mut PgConnection,
+        new_balance: NewBalance,
+    ) -> QueryResult<usize> {
+        diesel::insert_into(balances::table)
+            .values(&new_balance)
+            .on_conflict((balances::user_id, balances::token_mint))
+            .do_update()
+            .set((
+                balances::available.eq(balances::available + new_balance.amount),
+                balances::amount.eq(balances::amount + new_balance.amount),
+                balances::updated_at.eq(Utc::now()),
+            ))
+            .execute(conn)
+    }
+
+    /// Deduct funds from available (e.g., for withdrawals or swaps)
+    pub fn subtract_balance(
+        conn: &mut PgConnection,
+        user_id_val: Uuid,
+        mint: &str,
+        amount_to_subtract: i64,
+    ) -> QueryResult<usize> {
+        diesel::update(
+            balances::table
+                .filter(balances::user_id.eq(user_id_val))
+                .filter(balances::token_mint.eq(mint))
+                .filter(balances::available.ge(amount_to_subtract)),
+        )
+        .set((
+            balances::available.eq(balances::available - amount_to_subtract),
+            balances::amount.eq(balances::amount - amount_to_subtract),
+            balances::updated_at.eq(Utc::now()),
+        ))
+        .execute(conn)
+    }
 }
-

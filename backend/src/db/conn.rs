@@ -1,21 +1,16 @@
-
 use diesel::prelude::*;
 use diesel::PgConnection;
-use diesel::result::ConnectionError;
+use diesel::r2d2::{self, ConnectionManager};
 use std::env;
 
-pub struct Store {
-    pub conn: PgConnection 
-}
+pub type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
-
-impl Store {
-   
-    pub fn new() -> Result<Self, ConnectionError> {
-        dotenvy::dotenv().ok();
-        let database_url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| panic!("DATABASE_URL environment variable must be set"));
-        let conn = PgConnection::establish(&database_url)?;
-        Ok(Self { conn })
-    }
+pub fn create_pool() -> DbPool {
+    dotenvy::dotenv().ok();
+    let database_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL environment variable must be set");
+    let manager = ConnectionManager::<PgConnection>::new(database_url);
+    r2d2::Pool::builder()
+        .build(manager)
+        .expect("Failed to create pool.")
 }
