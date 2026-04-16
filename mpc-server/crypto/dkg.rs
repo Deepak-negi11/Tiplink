@@ -1,1 +1,0 @@
- distributed key generation protocol

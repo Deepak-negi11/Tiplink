@@ -15,16 +15,11 @@ pub async fn signup(
 ) -> Result<HttpResponse, AppError> {
     let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".to_string()))?;
 
-    // 1. validate (Actix natively parses structural requirements via serde)
-    // 2. check email free
     if User::exists_by_email(&mut conn, &req.email)? {
         return Err(AppError::BadRequest("User already exists".to_string()));
     }
 
-    // 3. hash password
     let hashed = hash_password(&req.password).map_err(|_| AppError::InternalServerError("Hashing failed".to_string()))?;
-    
-    // 4. generate user_id (In this case, User::signup maps ID internally if auto-gen, otherwise we orchestrate naturally)
     let user_id = Uuid::new_v4(); 
 
     // 5. run DKG -> get pubkey

@@ -128,94 +128,18 @@ impl TransactionIntentEntry {
             .values(&new_entry)
             .get_result(conn)
     }
+    pub fn update_intent_status(
+        conn: &mut PgConnection,
+        intent_id: Uuid,
+        new_status: &str,
+        tx_hash: Option<&str>,
+    ) -> QueryResult<usize> {
+        diesel::update(transaction_intents::table.find(intent_id))
+            .set((
+                transaction_intents::status.eq(new_status),
+                transaction_intents::final_tx_hash.eq(tx_hash),
+            ))
+            .execute(conn)
+    }
 }
 
-// ------ EXPLICIT SWAP ROUTING (For Handlers and Indexers) ------
-
-use crate::db::conn::DbPool;
-use crate::error::AppError;
-
-pub fn create(
-    pool: &DbPool,
-    user_id_val: Uuid,
-    input_mint_val: &str,
-    output_mint_val: &str,
-    input_amount_val: i64,
-    output_amount_val: i64,
-    fee_amount_val: i64,
-    tx_hash_val: &str
-) -> Result<Uuid, AppError> {
-    let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
-    
-    let new_swap = NewSwapEntry {
-        user_id: user_id_val,
-        input_mint: input_mint_val,
-        output_mint: output_mint_val,
-        input_amount: input_amount_val,
-        output_amount: output_amount_val,
-        fee_amount: fee_amount_val,
-        price_impact: BigDecimal::from(0), // Default mapping
-        requested_slippage_bps: 0,
-        tx_hash: tx_hash_val,
-        status: SwapStatus::Pending,
-    };
-
-    let result: SwapEntry = diesel::insert_into(swap_history::table) // Ensure imports connect logically
-        .values(&new_swap)
-        .get_result(&mut conn)
-        .map_err(|_| AppError::InternalServerError("Failed to create pending swap".into()))?;
-
-    Ok(result.id)
-}
-
-pub fn confirm(
-    pool: &DbPool,
-    tx_hash_val: &str,
-    output_amount_val: i64
-) -> Result<(), AppError> {
-    let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
-    
-    diesel::update(swap_history::table.filter(swap_history::tx_hash.eq(tx_hash_val)))
-        .set((
-            swap_history::status.eq(SwapStatus::Completed),
-            swap_history::confirmed_at.eq(Some(Utc::now())),
-            swap_history::output_amount.eq(output_amount_val),
-        ))
-        .execute(&mut conn)
-        .map_err(|_| AppError::InternalServerError("Failed to confirm swap".into()))?;
-        
-    Ok(())
-}
-
-pub fn fail(
-    pool: &DbPool,
-    tx_hash_val: &str
-) -> Result<(), AppError> {
-    let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
-    
-    diesel::update(swap_history::table.filter(swap_history::tx_hash.eq(tx_hash_val)))
-        .set(swap_history::status.eq(SwapStatus::Failed))
-        .execute(&mut conn)
-        .map_err(|_| AppError::InternalServerError("Failed to mark swap as failed".into()))?;
-        
-    Ok(())
-}
-
-pub fn get_history(
-    pool: &DbPool,
-    user_id_val: Uuid,
-    limit_val: i64,
-    offset_val: i64
-) -> Result<Vec<SwapEntry>, AppError> {
-    let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
-    
-    let entries = swap_history::table
-        .filter(swap_history::user_id.eq(user_id_val))
-        .order(swap_history::created_at.desc())
-        .limit(limit_val)
-        .offset(offset_val)
-        .load::<SwapEntry>(&mut conn)
-        .map_err(|_| AppError::InternalServerError("Failed to load swap history".into()))?;
-        
-    Ok(entries)
-}

@@ -1,18 +1,19 @@
 use reqwest::Client;
 use serde_json::{json, Value};
 use uuid::Uuid;
-// use frost_ed25519 as frost; // Uncomment when strictly typing SignatureShare logic locally
 use std::collections::BTreeMap;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use tokio::sync::mpsc;
+use frost_ed25519::{aggregate, Identifier, SignatureShare, SigningPackage};
+use frost_ed25519::keys::PublicKeyPackage;
+use bs58;
 
 use crate::error::AppError;
 use crate::services::dkg::Config;
 
-/// 1. HMAC Secure Hash Generator
+// api key is our secret in this and the body is the message
 pub fn hmac_sign(body: &str, api_key: &str) -> String {
-    // Generate secure signature across payload and the machine's keys
     let mut mac = Hmac::<Sha256>::new_from_slice(api_key.as_bytes())
         .expect("HMAC can take key of any size");
     mac.update(body.as_bytes());
@@ -20,9 +21,15 @@ pub fn hmac_sign(body: &str, api_key: &str) -> String {
     format!("{:x}", result.into_bytes())
 }
 
-/// Base secure request function
+
 async fn call_mpc_node(
-    client: &Client, url: &str, endpoint: &str, session: Uuid, user: Uuid, payload: Value, api_key: &str
+    client: &Client,
+    url: &str,
+    endpoint: &str, 
+    session: Uuid, 
+    user: Uuid, 
+    payload: Value, 
+    api_key: &str
 ) -> Result<Value, AppError> {
     let body_str = json!({ "session_id": session, "user_id": user, "data": payload }).to_string();
     let signature = hmac_sign(&body_str, api_key);
@@ -38,7 +45,7 @@ async fn call_mpc_node(
     Ok(res)
 }
 
-/// Wakes up the MPC Node
+
 pub async fn init_signing(client: &Client, url: &str, api_key: &str, session: Uuid, user: Uuid, tx_bytes: &[u8]) -> Result<(), AppError> {
     let b64_tx = base64::encode(tx_bytes);
     call_mpc_node(client, url, "/sign/init", session, user, json!({"tx": b64_tx}), api_key).await?;
@@ -57,18 +64,31 @@ pub async fn get_partial_sig(client: &Client, url: &str, api_key: &str, session:
     res["partial_sig"].as_str().map(|s| s.to_string()).ok_or_else(|| AppError::ExternalApi("Missing partial_sig shard".into()))
 }
 
-/// Aggregates mathematical responses back into one Master Address string securely
-pub fn combine_signatures(sig1: String, sig2: String) -> Result<String, AppError> {
-    // Math boundary. You will use `frost::aggregate(&[share1, share2])` here.
-    if sig1.is_empty() || sig2.is_empty() {
-        return Err(AppError::InternalServerError("Invalid signature shards".to_string()));
-    }
+pub fn combine_signatures(
+    signing_package:&SignaturePackage,
+    share1:SignatureShare,
+    id1:Identifier,
+    share2:SignatureShare,
+    id2:Identifier,
+    pubkey_package:&PublicKeyPackage,
+) -> Result<String, AppError> {
+
+    let mut signature_share = BTreeMap::new();
+    signature_share.insert(id1, share1);
+    signature_share.insert(id2, share2);
+
+    let final_signature = aggregate(
+        signing_package,
+        &signature_share,
+        pubkey_package
+    ).map_err(|_| AppError::InternalServerError("Cryptographic aggregation failed:invalid share".to_string()))?;
+
+   let sig_bytes = final_signature.to_bytes();
+   let solana_base58_sig = bs58::encode(sig_bytes).into_string();
     
-    // Abstract Return Logic
-    Ok(format!("0xS_{}_{}", &sig1[0..4], &sig2[0..4])) 
+   Ok(solana_base58_sig)
 }
 
-/// Coordinator handling 2-of-3 threshold loops (will NOT crash if 1 server goes down)
 pub async fn coordinate_transaction_signature(
     nodes: &Config,
     user_id: Uuid,
@@ -83,12 +103,11 @@ pub async fn coordinate_transaction_signature(
         (nodes.cloudflare.clone(), std::env::var("INTERNAL_MPC_KEY").unwrap_or_default()),
     ];
 
-    // ROUND 0: Init signing on all nodes
+  
     for (url, key) in &mpc_configs {
         let _ = init_signing(&client, url, key, session_id, user_id, tx_bytes).await;
     }
 
-    // ROUND 1: Get Commitments (Wait for fastest 2, drop the 3rd)
     let (tx, mut rx) = mpsc::channel(3);
     for (id, (url, key)) in mpc_configs.iter().enumerate() {
         let client_c = client.clone();
@@ -116,7 +135,6 @@ pub async fn coordinate_transaction_signature(
     }
     let comms_value = json!(commitments);
 
-    // ROUND 2: Get Partial Signatures (Wait for fastest 2, drop the 3rd)
     let (tx2, mut rx2) = mpsc::channel(3);
     for (id, (url, key)) in mpc_configs.iter().enumerate() {
         let client_c = client.clone();
@@ -136,7 +154,7 @@ pub async fn coordinate_transaction_signature(
     while let Some((_, psig)) = rx2.recv().await {
         partial_sigs.push(psig);
         if partial_sigs.len() == 2 {
-            break; // THRESHOLD REACHED
+            break; 
         }
     }
 
@@ -144,7 +162,21 @@ pub async fn coordinate_transaction_signature(
         return Err(AppError::ExternalApi("Threshold not reached for Round 2 (Multiple node failures)".to_string()));
     }
 
-    // COMBINE: Math Aggregation local to TipLink Server
-    let final_sig = combine_signatures(partial_sigs[0].clone(), partial_sigs[1].clone())?;
+    let share1_bytes = hex::decode(&partial_sigs[0])
+        .map_err(|_| AppError::InternalServerError("Failed to decode share 1".into()))?;
+    let share2_bytes = hex::decode(&partial_sigs[1])
+        .map_err(|_| AppError::InternalServerError("Failed to decode share 2".into()))?;
+
+    
+    let share1 = SignatureShare::deserialize(&share1_bytes)
+        .map_err(|_| AppError::InternalServerError("Invalid math share 1".into()))?;
+    let share2 = SignatureShare::deserialize(&share2_bytes)
+        .map_err(|_| AppError::InternalServerError("Invalid math share 2".into()))?;
+
+    let id1 = Identifier::try_from(1u16).unwrap(); 
+    let id2 = Identifier::try_from(2u16).unwrap();
+
+    
+    let final_sig = combine_signatures(&signing_package , share1, id1 , share2,id2 ,&pubkey_package);
     Ok(final_sig)
 }

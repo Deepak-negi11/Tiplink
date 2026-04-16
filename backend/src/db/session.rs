@@ -1,11 +1,12 @@
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use ipnetwork::IpNetwork;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use ipnetwork::IpNetwork; 
 
 use crate::db::schema::sessions;
 
-#[derive(Queryable, Selectable, Identifiable, Debug, Clone)]
+#[derive(Queryable, Selectable, Identifiable, Debug, Serialize, Deserialize)]
 #[diesel(table_name = sessions)]
 pub struct Session {
     pub id: Uuid,
@@ -21,6 +22,7 @@ pub struct Session {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = sessions)]
 pub struct NewSession<'a> {
+    pub id: Uuid,
     pub user_id: Uuid,
     pub refresh_token: &'a str,
     pub device_info: Option<&'a str>,
@@ -29,66 +31,48 @@ pub struct NewSession<'a> {
 }
 
 impl Session {
-    /// INSERT refresh token session. Called at every login.
+    /// 1. Create a new session when a user logs in
     pub fn create_session(
         conn: &mut PgConnection,
-        user_id: Uuid,
-        token_hash: &str,
-        device: Option<&str>,
-        ip: Option<IpNetwork>,
-        expires_at: DateTime<Utc>,
-    ) -> QueryResult<Uuid> {
-        let new_session = NewSession {
-            user_id,
-            refresh_token: token_hash,
-            device_info: device,
-            ip_address: ip,
-            expires_at,
-        };
-
+        new_session: NewSession,
+    ) -> QueryResult<Session> {
         diesel::insert_into(sessions::table)
             .values(&new_session)
-            .returning(sessions::id)
             .get_result(conn)
     }
 
-    /// SELECT session by hashed refresh token. Used at POST /auth/refresh.
-    pub fn find_session(
+    /// 2. SECURE LOOKUP: Find a session by token, BUT only if it is valid
+    pub fn find_valid_by_token(
         conn: &mut PgConnection,
-        token_hash: &str,
+        token_val: &str,
     ) -> QueryResult<Option<Session>> {
         sessions::table
-            .filter(sessions::refresh_token.eq(token_hash))
-            .select(Session::as_select())
+            .filter(sessions::refresh_token.eq(token_val))
+            .filter(sessions::revoked_at.is_null())       
+            .filter(sessions::expires_at.gt(Utc::now()))  
             .first(conn)
             .optional()
     }
 
-    /// UPDATE revoked_at = NOW(). Called on logout.
+    /// 3. Log a user out of a specific device
     pub fn revoke_session(
         conn: &mut PgConnection,
         session_id: Uuid,
-    ) -> QueryResult<()> {
+    ) -> QueryResult<usize> {
         diesel::update(sessions::table.find(session_id))
-            .set(sessions::revoked_at.eq(Utc::now()))
-            .execute(conn)?;
-        Ok(())
+            .set(sessions::revoked_at.eq(Some(Utc::now())))
+            .execute(conn)
     }
 
-    /// Revoke all sessions for a user. Called if account is compromised.
-    pub fn revoke_all_sessions(
+    /// 4. SECURITY PANIC: Log a user out of ALL devices 
+    pub fn revoke_all_for_user(
         conn: &mut PgConnection,
-        user_id: Uuid,
-    ) -> QueryResult<()> {
-        diesel::update(sessions::table.filter(sessions::user_id.eq(user_id)))
-            .set(sessions::revoked_at.eq(Utc::now()))
-            .execute(conn)?;
-        Ok(())
-    }
-
-    /// DELETE WHERE expires_at < NOW(). Run as a background job every hour.
-    pub fn cleanup_expired(conn: &mut PgConnection) -> QueryResult<usize> {
-        diesel::delete(sessions::table.filter(sessions::expires_at.lt(Utc::now())))
+        target_user_id: Uuid,
+    ) -> QueryResult<usize> {
+        diesel::update(sessions::table)
+            .filter(sessions::user_id.eq(target_user_id))
+            .filter(sessions::revoked_at.is_null()) 
+            .set(sessions::revoked_at.eq(Some(Utc::now())))
             .execute(conn)
     }
 }

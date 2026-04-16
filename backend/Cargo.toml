@@ -8,26 +8,12 @@ actix-web = "4.13.0"
 chrono = "0.4.44"
 serde = "1.0.228"
 serde_json = "1.0.149"
-diesel = { version = "2.2.0", features = ["postgres", "uuid", "chrono", "numeric", "network-address", "r2d2"] }
+diesel = { version = "2.2.0", features = ["postgres", "uuid", "chrono", "numeric", "network-address"] }
 uuid = { version = "1.12.1", features = ["serde", "v4"] }
 bigdecimal = "0.4.7"
 dotenvy = "0.15.7"
 ipnetwork = "0.21.1"
 diesel-derive-enum = { version = "2.1.0", features = ["postgres"] }
-reqwest = { version = "0.12", features = ["json"] }
-bincode = "1.3.3"
 solana-sdk = "4.0.1"
 solana-client = "3.1.12"
-argon2 = "0.5.3"
-jsonwebtoken = "9.3.0"
-actix-web-httpauth = "0.8.2"
-r2d2 = "0.8.10"
-frost-ed25519 = "2.2.0"
-rand = "0.10.1"
-vsss-rs = "3" 
-aes-gcm = "0.10"
-sha2 = "0.10.8"
-base64 = "0.21.5"
-hmac = "0.12.1"
-spl-token = "4.0.0"
-spl-associated-token-account = "3.0.2"
+bincode = "1.2.0"

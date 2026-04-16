@@ -60,10 +60,21 @@ pub struct SubmitTxRequest {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TransactionIntent {
     pub id: Uuid,
-    pub user_pubkey: String, 
+    pub user_id: Option<Uuid>, 
     pub intent_message: String,
     pub intent_signature: String,
-    pub unsigned_payload: String,
-    pub status: String, 
+    pub unsigned_payload: Option<String>,
+    pub status: Option<String>, 
     pub final_tx_hash: Option<String>,
+}
+
+#[derive(Insertable, Debug)]
+#[diesel(table_name = crate::db::schema::transaction_intents)]
+pub struct NewTransactionIntent<'a> {
+    pub id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub intent_message: &'a str,
+    pub intent_signature: &'a str,
+    pub unsigned_payload: &'a str,
+    pub status: &'a str,
 }

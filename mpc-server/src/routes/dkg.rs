@@ -1,1 +1,0 @@
- POST /dkg/init, /dkg/round1, /dkg/round2, /dkg/complete

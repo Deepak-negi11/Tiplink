@@ -1,1 +1,0 @@
-verify HMAC api key from backend

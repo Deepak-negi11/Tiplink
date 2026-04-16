@@ -23,6 +23,7 @@ pub struct User {
 #[derive(Insertable, Debug, Serialize, Deserialize)]
 #[diesel(table_name = users)]
 pub struct NewUser<'a> {
+    pub id:Uuid,
     pub email: &'a str,
     pub password: &'a str,
     pub public_key: &'a str,
@@ -31,12 +32,14 @@ pub struct NewUser<'a> {
 impl User {
     /// Create a new user entry
     pub fn signup(
+        id:Uuid,
         conn: &mut PgConnection,
         email: &str,
         password: &str,
         public_key: &str,
     ) -> QueryResult<User> {
         let new_user = NewUser {
+            id,
             email,
             password,
             public_key,
