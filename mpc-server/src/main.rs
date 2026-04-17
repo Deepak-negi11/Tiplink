@@ -8,6 +8,7 @@ use crate::state::MpcState;
 mod config;
 mod error;
 mod state;
+mod vault;
 mod routes;
 mod crypto;
 
