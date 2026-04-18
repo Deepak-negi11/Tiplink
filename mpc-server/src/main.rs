@@ -1,6 +1,5 @@
-use actix_web::{get, App,HttpServer ,web, HttpResponse,Responder};
-
-use dotevny::dotenv;
+use actix_web::{get, App, HttpServer, web, HttpResponse, Responder};
+use dotenvy::dotenv;
 use std::env;
 
 use crate::state::MpcState;
@@ -11,6 +10,7 @@ mod state;
 mod vault;
 mod routes;
 mod crypto;
+mod middleware;
 
 #[get("/ping")]
 async fn ping() -> impl Responder {
@@ -18,25 +18,30 @@ async fn ping() -> impl Responder {
 }
 
 #[actix_web::main]
-async fn main()->std::io::Result<()>{
-    println!("Starting the MPC Vault Server on port 8081:");
-    dotenv.ok();
+async fn main() -> std::io::Result<()> {
+    dotenv().ok();
 
-    let node_id_str = env::var("NODE_ID").expect("Node_id must be set");
-    let hmac_key = env::var("INTERNAL_MPC_KEY").expect("Internal_mpc_key must eb set");
-    let aes_key = env::var("AES_MASTER_KEY").expect("AES MASTER KEY must be set");
+    let node_id_str = env::var("NODE_ID").expect("NODE_ID must be set");
+    let hmac_key = env::var("INTERNAL_MPC_KEY").expect("INTERNAL_MPC_KEY must be set");
+    let aes_key = env::var("AES_MASTER_KEY").expect("AES_MASTER_KEY must be set");
 
-    let app_state = MpcState{
-        node_id:node_id_str.parse::<u16>().expect("Node Id must be a number "),
-        hmac_secret:hmac_key,
-        aes_secret_key:aes_key,
-    };
+    let node_id: u16 = node_id_str.parse().expect("NODE_ID must be a number");
+    let port: u16 = env::var("PORT")
+        .unwrap_or_else(|_| "8081".to_string())
+        .parse()
+        .expect("PORT must be a number");
 
-    HttpServer::new(|| {
+    println!("Starting MPC Vault Server (Node {}) on port {}...", node_id, port);
+
+    let app_state = MpcState::new(node_id, hmac_key, aes_key);
+
+    HttpServer::new(move || {
         App::new()
-            .server()
+            .app_data(web::Data::new(app_state.clone()))
+            .service(ping)
+            .configure(routes::init_routes)
     })
-    .bind(("127.0.0.1",8081))?
+    .bind(("127.0.0.1", port))?
     .run()
-    .await()
+    .await
 }
