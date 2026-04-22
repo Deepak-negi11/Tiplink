@@ -3,11 +3,14 @@ use uuid::Uuid;
 use crate::error::AppError;
 use crate::db::conn::DbPool;
 use crate::db::balances::Balance;
+use crate::db::user::User;
+use crate::db::transaction::Transaction;
 use crate::services::intent::SendIntent;
 use crate::services::solana::{build_transfer_tx, submit_transaction};
 use crate::db::swap::{TransactionIntentEntry, NewTransactionIntent};
 use serde::{Deserialize, Serialize};
 use std::env;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 #[derive(Deserialize)]
 pub struct SendRequest {
@@ -30,6 +33,19 @@ pub struct HistoryParams {
     pub offset: Option<i64>,
 }
 
+/// Returns the required Solana RPC URL. Panics if not set — public RPC is rate-limited.
+fn solana_rpc_url() -> String {
+    env::var("SOLANA_RPC_URL")
+        .expect("FATAL: SOLANA_RPC_URL must be set. The public mainnet RPC is rate-limited and unsuitable for production.")
+}
+
+/// Extracts the authenticated user's public key from the database.
+fn get_user_pubkey(conn: &mut diesel::PgConnection, user_id: Uuid) -> Result<String, AppError> {
+    let user = User::find_by_id(conn, user_id)?
+        .ok_or_else(|| AppError::InternalServerError("Authenticated user not found in database".to_string()))?;
+    Ok(user.public_key)
+}
+
 // 1. Fetch live balances mapped exclusively to User database context
 pub async fn get_balance(
     pool: web::Data<DbPool>,
@@ -43,7 +59,7 @@ pub async fn get_balance(
     Ok(HttpResponse::Ok().json(balances))
 }
 
-// 2. Initial logic to generate Unsigned Transfer Intent and verify balances beforehand
+// 2. Generate Unsigned Transfer Intent and verify balances beforehand
 pub async fn send(
     pool: web::Data<DbPool>,
     req: HttpRequest,
@@ -53,8 +69,8 @@ pub async fn send(
     let user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
         
-    // TODO: In production extract Native Pubkey from User db abstraction here
-    let user_pubkey = "TODO_EXTRACT_PUBKEY_FROM_DB";
+    // Extract the real user public key from the database
+    let user_pubkey = get_user_pubkey(&mut conn, user_id)?;
     
     // Abstract intent validation properties
     let _intent = SendIntent {
@@ -74,18 +90,19 @@ pub async fn send(
         return Err(AppError::BadRequest("Insufficient balance for requested transfer".to_string()));
     }
     
-    // Abstract Solana Builder routing
-    let rpc_url = env::var("SOLANA_RPC_URL").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
+    // Build Solana transfer transaction with real user pubkey
+    let rpc_url = solana_rpc_url();
+    let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(rpc_url);
+    let unsigned_tx = build_transfer_tx(&rpc_client, &user_pubkey, &body.to, amount_u64).await?;
+    let payload_b64 = BASE64.encode(&unsigned_tx);
     
-    let unsigned_tx = build_transfer_tx(&rpc_url, user_pubkey, &body.to, amount_u64).await?;
-    let payload_b64 = base64::encode(&unsigned_tx);
-    
-    // Store intent directly inside database configuration schema locking execution sequence
+    // Store intent in database
     let nonce = Uuid::new_v4();
+    let intent_meta = format!("SEND|{}|{}|{}", body.to, body.amount, body.mint);
     let new_intent = NewTransactionIntent {
         id: nonce,
         user_id: Some(user_id),
-        intent_message: "SEND_REQUEST",
+        intent_message: &intent_meta,
         intent_signature: &body.signature,
         unsigned_payload: Some(&payload_b64),
         status: Some("pending"),
@@ -93,7 +110,6 @@ pub async fn send(
     TransactionIntentEntry::create_intent(&mut conn, new_intent)
         .map_err(|_| AppError::InternalServerError("Failed to map transaction intent".to_string()))?;
     
-    // Extrapolate payload back to front-end abstraction layers safely
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "nonce": nonce,
         "unsigned_tx": payload_b64
@@ -107,27 +123,34 @@ pub async fn submit_send(
     body: web::Json<SubmitRequest>
 ) -> Result<HttpResponse, AppError> {
     let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
-    let user_id = req.extensions().get::<Uuid>().cloned()
+    let user_uuid = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-    // Find intent routing execution
+    // Find the pending intent
     use crate::db::schema::transaction_intents::dsl::*;
     use diesel::prelude::*;
-    let _pending = transaction_intents
+    let pending = transaction_intents
         .filter(id.eq(body.nonce))
         .first::<TransactionIntentEntry>(&mut conn)
         .map_err(|_| AppError::BadRequest("Invalid or expired pending_tx nonce".to_string()))?;
+    
+    // Extract the original mint and amount from the stored intent_message (SEND|to|amount|mint)
+    let intent_parts: Vec<&str> = pending.intent_message.split('|').collect();
+    let (original_mint, original_amount) = if intent_parts.len() >= 4 {
+        (intent_parts[3].to_string(), intent_parts[2].parse::<i64>().unwrap_or(0))
+    } else {
+        return Err(AppError::InternalServerError("Corrupt intent message format".into()));
+    };
         
-    // Verify target signatures match native buffers inside Solana pipeline 
-    // -> Requires mapping extract_amounts over pending transactions
+    // Submit to Solana
+    let rpc_url = solana_rpc_url();
+    let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(rpc_url);
+    let sig = submit_transaction(&rpc_client, &String::from_utf8(body.signed_tx.clone()).unwrap_or_default()).await?;
     
-    let rpc_url = env::var("SOLANA_RPC_URL").unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
-    let sig = submit_transaction(&rpc_url, &body.signed_tx).await?;
+    // Subtract the real amount from the real token mint
+    let _ = Balance::subtract_balance(&mut conn, user_uuid, &original_mint, original_amount);
     
-    // Abstract wallet subtraction locally 
-    let _ = Balance::subtract_balance(&mut conn, user_id, "NATIVE_SOL", 0);
-    
-    // Extinguish intent block structure 
+    // Clean up the intent
     diesel::delete(transaction_intents.filter(id.eq(body.nonce))).execute(&mut conn)
         .map_err(|_| AppError::InternalServerError("Failed to clear intent lock cleanly".to_string()))?;
         
@@ -136,17 +159,31 @@ pub async fn submit_send(
     })))
 }
 
-// 4. Extrapolate paginated structures natively tracking historical transfers
+// 4. Real paginated transaction history from the database
 pub async fn get_history(
+    pool: web::Data<DbPool>,
     req: HttpRequest,
     query: web::Query<HistoryParams>
 ) -> Result<HttpResponse, AppError> {
-    let _user_id = req.extensions().get::<Uuid>().cloned()
+    let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
+    let user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
         
-    let _limit = query.limit.unwrap_or(20);
-    let _offset = query.offset.unwrap_or(0);
+    let limit = query.limit.unwrap_or(20).min(100); // Cap at 100
+    let offset = query.offset.unwrap_or(0);
     
-    // Pagination wrapper intercept
-    Ok(HttpResponse::Ok().json("Fetched paginated history successfully via internal generic indices"))
+    // Query real transaction data from the indexed transactions table
+    use crate::db::schema::transactions::dsl;
+    use diesel::prelude::*;
+    
+    let txs: Vec<Transaction> = dsl::transactions
+        .filter(dsl::user_id.eq(user_id))
+        .order(dsl::block_time.desc())
+        .limit(limit)
+        .offset(offset)
+        .select(Transaction::as_select())
+        .load(&mut conn)
+        .map_err(|e| AppError::InternalServerError(format!("Failed to query transaction history: {}", e)))?;
+    
+    Ok(HttpResponse::Ok().json(txs))
 }

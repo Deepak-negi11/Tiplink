@@ -9,7 +9,6 @@ use crate::db::schema::swap_history;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::SwapStatus"]
-#[diesel(postgres_type(name = "swap_status"))]
 pub enum SwapStatus {
     Pending,
     Completed,
@@ -27,11 +26,11 @@ pub struct SwapEntry {
     pub input_amount: i64,
     pub fee_amount: i64,
     pub price_impact: BigDecimal,
-    pub requested_slippage_bps: i32, 
     pub tx_hash: String,
     pub status: SwapStatus,
     pub created_at: DateTime<Utc>,
     pub confirmed_at: Option<DateTime<Utc>>,
+    pub requested_slippage_bps: i32, 
 }
 
 #[derive(Insertable, Debug)]
@@ -44,9 +43,9 @@ pub struct NewSwapEntry<'a> {
     pub input_amount: i64,
     pub fee_amount: i64,
     pub price_impact: BigDecimal,
-    pub requested_slippage_bps: i32, 
     pub tx_hash: &'a str,
     pub status: SwapStatus,
+    pub requested_slippage_bps: i32,
 }
 
 impl SwapEntry {

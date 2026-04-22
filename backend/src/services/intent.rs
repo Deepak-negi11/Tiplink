@@ -4,7 +4,6 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Signature,
     transaction::Transaction,
-    instruction::CompiledInstruction,
 };
 use crate::error::AppError;
 

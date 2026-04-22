@@ -2,6 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
 use std::collections::BTreeMap;
+use std::time::Instant;
 use frost_ed25519 as frost;
 
 use crate::state::{MpcState, DkgSession};
@@ -9,16 +10,8 @@ use crate::middleware;
 use crate::vault;
 use crate::crypto;
 use crate::error::MpcError;
+use crate::util::parse_identifier;
 
-fn parse_identifier(id_str: &str) -> Result<frost::Identifier, MpcError> {
-    if let Ok(num) = id_str.parse::<u16>() {
-        return num.try_into()
-            .map_err(|_| MpcError::BadRequest(format!("Invalid FROST identifier from u16: {}", id_str)));
-    }
-    let quoted = format!("\"{}\"", id_str);
-    serde_json::from_str::<frost::Identifier>(&quoted)
-        .map_err(|e| MpcError::BadRequest(format!("Cannot parse FROST identifier '{}': {}", id_str, e)))
-}
 
 #[derive(Deserialize)]
 pub struct DkgRequest {
@@ -70,6 +63,7 @@ pub async fn dkg_round1(
         round1_secret: Some(round1_secret),
         round2_secret: None,
         received_round1_packages: BTreeMap::new(),
+        created_at: Instant::now(),
     });
 
     let package_json = serde_json::to_value(&round1_package)
@@ -197,7 +191,8 @@ pub async fn dkg_finalize(
     server_state.dkg_sessions.remove(&session_key);
 
     let verifying_key = pubkey_package.verifying_key();
-    let vk_bytes = verifying_key.serialize();
+    let vk_bytes = verifying_key.serialize()
+        .map_err(|e| MpcError::Internal(format!("Failed to serialize key: {}", e)))?;
     let public_key_hex = hex::encode(&vk_bytes);
 
     Ok(HttpResponse::Ok().json(serde_json::json!({

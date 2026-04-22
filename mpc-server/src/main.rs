@@ -11,6 +11,7 @@ mod vault;
 mod routes;
 mod crypto;
 mod middleware;
+mod util;
 
 #[get("/ping")]
 async fn ping() -> impl Responder {
@@ -34,6 +35,15 @@ async fn main() -> std::io::Result<()> {
     println!("Starting MPC Vault Server (Node {}) on port {}...", node_id, port);
 
     let app_state = MpcState::new(node_id, hmac_key, aes_key);
+
+    let cleanup_state = app_state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            cleanup_state.purge_expired_sessions();
+        }
+    });
 
     HttpServer::new(move || {
         App::new()

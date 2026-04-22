@@ -1,10 +1,9 @@
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use std::collections::BTreeMap;
 use crate::error::AppError;
+use crate::services::hmac::post_to_node;
 
 pub struct Config {
     pub aws: String,
@@ -13,55 +12,14 @@ pub struct Config {
     pub api_keys: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DkgRound1Data {
-    pub commitment: String,
-}
-
-pub fn hmac_sign(body: &str, api_key: &str) -> String {
-    let mut mac = Hmac::<Sha256>::new_from_slice(api_key.as_bytes())
-        .expect("HMAC can take key of any size");
-    mac.update(body.as_bytes());
-    let result = mac.finalize();
-    format!("{:x}", result.into_bytes())
-}
-
-pub async fn dkg_round1(url: &str, session_id: Uuid, user_id: Uuid, api_key: &str, client: &Client) -> Result<DkgRound1Data, AppError> {
-    let body_str = json!({ "session_id": session_id, "user_id": user_id }).to_string();
-    let signature = hmac_sign(&body_str, api_key);
-    
-    let res = client.post(format!("{}/dkg/round1", url))
-        .header("X-Signature", signature)
-        .header("Content-Type", "application/json")
-        .body(body_str)
-        .send().await
-        .map_err(|_| AppError::ExternalApi("DKG Round 1 connection failed".to_string()))?
-        .json::<Value>().await
-        .map_err(|_| AppError::ExternalApi("DKG invalid JSON payload".to_string()))?;
-        
-    let comm = res["commitment"].as_str().ok_or_else(|| AppError::ExternalApi("Missing commitment".into()))?.to_string();
-    Ok(DkgRound1Data { commitment: comm })
-}
-
-pub async fn dkg_round2(url: &str, session_id: Uuid, user_id: Uuid, others: Vec<DkgRound1Data>, api_key: &str, client: &Client) -> Result<String, AppError> {
-    let body_str = json!({ 
-        "session_id": session_id, 
-        "user_id": user_id, 
-        "others": others 
-    }).to_string();
-    let signature = hmac_sign(&body_str, api_key);
-    
-    let res = client.post(format!("{}/dkg/round2", url))
-        .header("X-Signature", signature)
-        .header("Content-Type", "application/json")
-        .body(body_str)
-        .send().await
-        .map_err(|_| AppError::ExternalApi("DKG Round 2 connection failed".to_string()))?
-        .json::<Value>().await
-        .map_err(|_| AppError::ExternalApi("DKG invalid JSON payload".to_string()))?;
-        
-    let pubkey = res["public_key"].as_str().ok_or_else(|| AppError::ExternalApi("Missing public_key".into()))?.to_string();
-    Ok(pubkey)
+impl Config {
+    pub fn node_urls(&self) -> Vec<(&str, u16)> {
+        vec![
+            (&self.aws, 1),
+            (&self.do_ocean, 2),
+            (&self.cloudflare, 3),
+        ]
+    }
 }
 
 pub async fn generate_keypair(config: &Config, user_id: Uuid) -> Result<String, AppError> {
@@ -69,24 +27,84 @@ pub async fn generate_keypair(config: &Config, user_id: Uuid) -> Result<String, 
     let session_id = Uuid::new_v4();
     let key = &config.api_keys;
 
-    // ROUND 1: Simultaneous POST
+    // ========================================================================
+    // ROUND 1: Each node generates its commitment (FROST DKG part1)
+    // ========================================================================
+    let body1 = json!({ "session_id": session_id, "user_id": user_id }).to_string();
+
     let (r1_aws, r1_do, r1_cf) = tokio::try_join!(
-        dkg_round1(&config.aws, session_id, user_id, key, &client),
-        dkg_round1(&config.do_ocean, session_id, user_id, key, &client),
-        dkg_round1(&config.cloudflare, session_id, user_id, key, &client)
+        post_to_node(&client, &config.aws, "/dkg/round1", &body1, key),
+        post_to_node(&client, &config.do_ocean, "/dkg/round1", &body1, key),
+        post_to_node(&client, &config.cloudflare, "/dkg/round1", &body1, key),
     )?;
 
-    // ROUND 2: Forwarding generated permutations
-    let aws_others = vec![DkgRound1Data{commitment: r1_do.commitment.clone()}, DkgRound1Data{commitment: r1_cf.commitment.clone()}];
-    let do_others = vec![DkgRound1Data{commitment: r1_aws.commitment.clone()}, DkgRound1Data{commitment: r1_cf.commitment.clone()}];
-    let cf_others = vec![DkgRound1Data{commitment: r1_aws.commitment.clone()}, DkgRound1Data{commitment: r1_do.commitment.clone()}];
+    let c1 = &r1_aws["commitment"];
+    let c2 = &r1_do["commitment"];
+    let c3 = &r1_cf["commitment"];
 
-    let (r2_aws, _r2_do, _r2_cf) = tokio::try_join!(
-        dkg_round2(&config.aws, session_id, user_id, aws_others, key, &client),
-        dkg_round2(&config.do_ocean, session_id, user_id, do_others, key, &client),
-        dkg_round2(&config.cloudflare, session_id, user_id, cf_others, key, &client)
+    // ========================================================================
+    // ROUND 2: Each node receives others' round1 packages, produces round2 packages
+    // (FROST DKG part2)
+    // ========================================================================
+    let body2_aws = json!({
+        "session_id": session_id, "user_id": user_id,
+        "others": { "2": c2, "3": c3 }
+    }).to_string();
+    let body2_do = json!({
+        "session_id": session_id, "user_id": user_id,
+        "others": { "1": c1, "3": c3 }
+    }).to_string();
+    let body2_cf = json!({
+        "session_id": session_id, "user_id": user_id,
+        "others": { "1": c1, "2": c2 }
+    }).to_string();
+
+    let (r2_aws, r2_do, r2_cf) = tokio::try_join!(
+        post_to_node(&client, &config.aws, "/dkg/round2", &body2_aws, key),
+        post_to_node(&client, &config.do_ocean, "/dkg/round2", &body2_do, key),
+        post_to_node(&client, &config.cloudflare, "/dkg/round2", &body2_cf, key),
     )?;
 
-    // All servers mathematically derive the exact same public key
-    Ok(r2_aws)
+    // ========================================================================
+    // ROUND 3 (Finalize): Each node receives others' round2 packages, computes final key
+    // (FROST DKG part3)
+    // ========================================================================
+    let r2_pkgs_aws = &r2_aws["round2_packages"];
+    let r2_pkgs_do = &r2_do["round2_packages"];
+    let r2_pkgs_cf = &r2_cf["round2_packages"];
+
+    let body3_aws = json!({
+        "session_id": session_id, "user_id": user_id,
+        "round2_packages": {
+            "2": r2_pkgs_do.get("1").unwrap_or(&Value::Null),
+            "3": r2_pkgs_cf.get("1").unwrap_or(&Value::Null),
+        }
+    }).to_string();
+    let body3_do = json!({
+        "session_id": session_id, "user_id": user_id,
+        "round2_packages": {
+            "1": r2_pkgs_aws.get("2").unwrap_or(&Value::Null),
+            "3": r2_pkgs_cf.get("2").unwrap_or(&Value::Null),
+        }
+    }).to_string();
+    let body3_cf = json!({
+        "session_id": session_id, "user_id": user_id,
+        "round2_packages": {
+            "1": r2_pkgs_aws.get("3").unwrap_or(&Value::Null),
+            "2": r2_pkgs_do.get("3").unwrap_or(&Value::Null),
+        }
+    }).to_string();
+
+    let (r3_aws, _r3_do, _r3_cf) = tokio::try_join!(
+        post_to_node(&client, &config.aws, "/dkg/finalize", &body3_aws, key),
+        post_to_node(&client, &config.do_ocean, "/dkg/finalize", &body3_do, key),
+        post_to_node(&client, &config.cloudflare, "/dkg/finalize", &body3_cf, key),
+    )?;
+
+    let public_key = r3_aws["public_key"]
+        .as_str()
+        .ok_or_else(|| AppError::ExternalApi("Missing public_key from DKG finalize".into()))?
+        .to_string();
+
+    Ok(public_key)
 }

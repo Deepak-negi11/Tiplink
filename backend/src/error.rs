@@ -65,3 +65,9 @@ impl From<r2d2::Error> for AppError {
         AppError::InternalServerError(format!("Pool error: {}", err))
     }
 }
+
+impl From<Box<dyn std::error::Error>> for AppError {
+    fn from(err: Box<dyn std::error::Error>) -> Self {
+        AppError::InternalServerError(err.to_string())
+    }
+}

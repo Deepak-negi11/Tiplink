@@ -1,4 +1,4 @@
-use solana_client::nonblocking::rpc_clinet::RpcClient;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
@@ -7,7 +7,7 @@ use solana_sdk::{
 };
 use std::str::FromStr;
 use std::error::Error;
-
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 pub async fn get_recent_blockhash(
     client:&RpcClient,
@@ -17,9 +17,8 @@ pub async fn get_recent_blockhash(
     Ok(blockhash)
 }
 
-
-pub async fn build_unsigend_tx(
-    client:RpcClient,
+pub async fn build_transfer_tx(
+    client:&RpcClient,
     from:&str,
     to:&str,
     amount:u64
@@ -31,26 +30,26 @@ pub async fn build_unsigend_tx(
     let instruction = system_instruction::transfer(
         &sender,
         &reciever,
-        &amount,
+        amount,
     );
     let mut message = Message::new(&[instruction],Some(&sender));
     message.recent_blockhash = get_recent_blockhash(client).await?;
     
     let tx = Transaction::new_unsigned(message);
     let serialzed_bytes = bincode::serialize(&tx)?;
-    let base64_payload = base64::encode(serialzed_bytes);
+    let base64_payload = BASE64.encode(serialzed_bytes);
 
     Ok(base64_payload)
 }
+
 pub async fn submit_transaction(
     client: &RpcClient,
     signed_base64_tx: &str,
 ) -> Result<String, Box<dyn Error>> {
     
-    let bytes = base64::decode(signed_base64_tx)?;
+    let bytes = BASE64.decode(signed_base64_tx)?;
     let tx: Transaction = bincode::deserialize(&bytes)?;
 
-    
     if tx.signatures.is_empty() {
         return Err("Transaction is missing signatures. Rejecting.".into());
     }

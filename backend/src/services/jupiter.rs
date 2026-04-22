@@ -1,7 +1,6 @@
-// calls Jupiter quote + swap APIs
-
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::error::AppError;
 
 #[derive(Debug, Serialize)]
@@ -97,7 +96,7 @@ pub async fn get_swap_transaction(
         let swap_res: SwapResponse = response.json().await
             .map_err(|_| AppError::ExternalApi("Failed to parse Jupiter swap payload".to_string()))?;
             
-        let decoded_tx_bytes = base64::decode(&swap_res.swap_transaction)
+        let decoded_tx_bytes = BASE64.decode(&swap_res.swap_transaction)
             .map_err(|_| AppError::ExternalApi("Failed to decode Jupiter base64 transaction string".to_string()))?;
             
         Ok(decoded_tx_bytes)

@@ -9,6 +9,25 @@ use crate::services::auth::{hash_password, verify_password, generate_access_toke
 use crate::services::dkg::{generate_keypair, Config};
 use crate::error::AppError;
 
+/// Returns the JWT secret from env. Panics at startup if not set — never use a default.
+fn jwt_secret() -> String {
+    std::env::var("JWT_SECRET")
+        .expect("FATAL: JWT_SECRET environment variable is not set. Refusing to start with an insecure default.")
+}
+
+/// Builds MPC node configuration from environment variables. All node URLs are required.
+fn mpc_config() -> Result<Config, AppError> {
+    let aws = std::env::var("MPC_NODE_1")
+        .map_err(|_| AppError::InternalServerError("MPC_NODE_1 not configured".into()))?;
+    let do_ocean = std::env::var("MPC_NODE_2")
+        .map_err(|_| AppError::InternalServerError("MPC_NODE_2 not configured".into()))?;
+    let cloudflare = std::env::var("MPC_NODE_3")
+        .map_err(|_| AppError::InternalServerError("MPC_NODE_3 not configured".into()))?;
+    let api_keys = std::env::var("INTERNAL_MPC_KEY").unwrap_or_default();
+
+    Ok(Config { aws, do_ocean, cloudflare, api_keys })
+}
+
 pub async fn signup(
     pool: web::Data<DbPool>,
     req: web::Json<SignupRequest>
@@ -22,25 +41,18 @@ pub async fn signup(
     let hashed = hash_password(&req.password).map_err(|_| AppError::InternalServerError("Hashing failed".to_string()))?;
     let user_id = Uuid::new_v4(); 
 
-    // 5. run DKG -> get pubkey
-    let dkg_conf = Config {
-        aws: std::env::var("MPC_NODE_1").unwrap_or_else(|_| "http://localhost:8001".into()),
-        do_ocean: std::env::var("MPC_NODE_2").unwrap_or_else(|_| "http://localhost:8002".into()),
-        cloudflare: std::env::var("MPC_NODE_3").unwrap_or_else(|_| "http://localhost:8003".into()),
-        api_keys: std::env::var("INTERNAL_MPC_KEY").unwrap_or_default(),
-    };
+    // Run DKG across MPC nodes — no fallback, DKG must succeed.
+    let dkg_conf = mpc_config()?;
+    let public_key = generate_keypair(&dkg_conf, user_id).await
+        .map_err(|e| AppError::InternalServerError(
+            format!("Distributed key generation failed. MPC nodes may be offline: {}", e)
+        ))?;
     
-    // Attempt multi-party distributed cryptographic generation (falls back to stub securely handling disconnected CI testing environments)
-    let public_key = match generate_keypair(&dkg_conf, user_id).await {
-        Ok(key) => key,
-        Err(_) => "OFFLINE_DKG_STUB_KEY".to_string(), 
-    };
+    let user = User::signup(user_id, &mut conn, &req.email, &hashed, &public_key)?;
     
-    // 6. INSERT user with all fields
-    let user = User::signup(&mut conn, &req.email, &hashed, &public_key)?;
-    
-    // 7. return JWT
-    let token = generate_access_token(user.id, &std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".into()))
+    // Return JWT
+    let secret = jwt_secret();
+    let token = generate_access_token(user.id, &secret)
         .map_err(|_| AppError::InternalServerError("Token generation failed".to_string()))?;
 
     Ok(HttpResponse::Ok().json(AuthResponse {
@@ -67,10 +79,14 @@ pub async fn signin(
          return Err(AppError::Unauthorized("Invalid credentials".to_string()));
     }
 
-    // 3. check is_active (Assumed boolean representation true natively mapping upon active constraint rules)
+    // 3. check is_active
+    if !user.is_active {
+        return Err(AppError::Unauthorized("Account is deactivated".to_string()));
+    }
 
     // 4. generate tokens
-    let token = generate_access_token(user.id, &std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".into()))
+    let secret = jwt_secret();
+    let token = generate_access_token(user.id, &secret)
         .map_err(|_| AppError::InternalServerError("Token generation failed".to_string()))?;
         
     let refresh_token_raw = generate_refresh_token();
@@ -78,7 +94,15 @@ pub async fn signin(
     
     // 5. store session
     let expires = Utc::now() + TimeDelta::try_days(7).unwrap_or_default();
-    Session::create_session(&mut conn, user.id, &hashed_refresh, None, None, expires)?;
+    let new_session = crate::db::session::NewSession {
+        id: Uuid::new_v4(),
+        user_id: user.id,
+        refresh_token: &hashed_refresh,
+        device_info: None,
+        ip_address: None,
+        expires_at: expires,
+    };
+    Session::create_session(&mut conn, new_session)?;
 
     // 6. return access+refresh tokens
     Ok(HttpResponse::Ok().json(AuthResponse {
@@ -100,7 +124,7 @@ pub async fn refresh(
     let hashed_incoming = hash_token(&req.refresh_token);
     
     // 2. find session
-    let session = Session::find_session(&mut conn, &hashed_incoming)?
+    let session = Session::find_valid_by_token(&mut conn, &hashed_incoming)?
         .ok_or_else(|| AppError::Unauthorized("Invalid session".to_string()))?;
         
     // 3. check not revoked+not expired
@@ -109,7 +133,8 @@ pub async fn refresh(
     }
     
     // 4. return new access_token
-    let token = generate_access_token(session.user_id, &std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".into()))
+    let secret = jwt_secret();
+    let token = generate_access_token(session.user_id, &secret)
         .map_err(|_| AppError::InternalServerError("Token generation failed".to_string()))?;
         
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -132,7 +157,7 @@ pub async fn logout(
     let hashed_refresh = hash_token(&req_body.refresh_token);
     
     // find session
-    if let Ok(Some(session)) = Session::find_session(&mut conn, &hashed_refresh) {
+    if let Ok(Some(session)) = Session::find_valid_by_token(&mut conn, &hashed_refresh) {
         // call db::sessions::revoke()
         let _ = Session::revoke_session(&mut conn, session.id);
     }

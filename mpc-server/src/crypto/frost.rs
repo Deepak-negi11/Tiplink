@@ -2,10 +2,8 @@ use frost_ed25519 as frost;
 use frost::keys::dkg;
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
+use crate::config::{MAX_SIGNERS, MIN_SIGNERS};
 use crate::error::MpcError;
-
-pub const MAX_SIGNERS: u16 = 3;
-pub const MIN_SIGNERS: u16 = 2;
 
 pub fn dkg_part1(
     node_id: u16,

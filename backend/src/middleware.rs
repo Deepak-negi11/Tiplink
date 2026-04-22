@@ -10,8 +10,9 @@ pub async fn jwt_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    // In production, 'JWT_SECRET' should definitely be set in your .env
-    let secret = env::var("JWT_SECRET").unwrap_or_else(|_| "secret".into());
+    // JWT_SECRET is required — never fall back to an insecure default
+    let secret = env::var("JWT_SECRET")
+        .expect("FATAL: JWT_SECRET environment variable is not set.");
     let token = credentials.token();
 
     // Verify token structure, expiration, and signature

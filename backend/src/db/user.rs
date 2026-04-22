@@ -75,6 +75,18 @@ impl User {
             .optional()
     }
 
+    /// Find a user by their public key (Solana wallet address)
+    pub fn find_by_public_key(
+        conn: &mut PgConnection,
+        pubkey: &str,
+    ) -> QueryResult<Option<User>> {
+        users::table
+            .filter(users::public_key.eq(pubkey))
+            .select(User::as_select())
+            .first(conn)
+            .optional()
+    }
+
     /// Check if a user with the given email exists
     pub fn exists_by_email(
         conn: &mut PgConnection,

@@ -1,7 +1,6 @@
-
-use serde::{Deserialize,Serialize};
-
-
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use diesel::prelude::*;
 #[derive(Serialize,Deserialize,Debug)]
 pub struct QuoteRequest{
     pub input_mint: String,
@@ -37,10 +36,6 @@ pub struct SwapRequest{
 pub struct SwapResponse {
     pub message: String,
     pub tx_hash: String, 
-}
-#[derive(Debug, Deserialize)]
-pub struct SubmitTxRequest {
-    pub signed_base64_tx: String, 
 }
 
 

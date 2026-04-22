@@ -5,14 +5,22 @@ pub mod user;
 pub mod wallet;
 
 use actix_web::web;
+use actix_web_httpauth::middleware::HttpAuthentication;
+use crate::middleware::jwt_validator;
 
 pub fn init_routes(cfg: &mut web::ServiceConfig) {
+    // Public routes — no auth required
     cfg.service(
         web::scope("/api")
             .configure(auth::configure)
-            .configure(link::configure)
-            .configure(swap::configure)
-            .configure(user::configure)
-            .configure(wallet::configure)
+            // Protected routes — JWT required
+            .service(
+                web::scope("")
+                    .wrap(HttpAuthentication::bearer(jwt_validator))
+                    .configure(link::configure)
+                    .configure(swap::configure)
+                    .configure(user::configure)
+                    .configure(wallet::configure)
+            )
     );
 }

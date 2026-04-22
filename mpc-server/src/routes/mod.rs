@@ -1,5 +1,6 @@
 pub mod dkg;
 pub mod sign;
+pub mod keys;
 
 use actix_web::web;
 
@@ -16,5 +17,9 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
             .route("/init", web::post().to(sign::sign_init))
             .route("/round1", web::post().to(sign::sign_round1))
             .route("/round2", web::post().to(sign::sign_round2))
+    );
+    cfg.service(
+        web::scope("/keys")
+            .route("/pubkey_package", web::post().to(keys::get_pubkey_package))
     );
 }

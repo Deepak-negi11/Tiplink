@@ -10,6 +10,12 @@ pub struct UpdateRequest {
     pub username: String,
 }
 
+#[derive(Deserialize)]
+pub struct LookupRequest {
+    pub email: Option<String>,
+    pub public_key: Option<String>,
+}
+
 pub async fn get_user(
     pool: web::Data<DbPool>,
     req: HttpRequest
@@ -21,7 +27,6 @@ pub async fn get_user(
     let user = User::find_by_id(&mut conn, user_id)?
         .ok_or_else(|| AppError::BadRequest("User not found".to_string()))?;
 
-    // db::users::find_by_id. Returns profile without password_hash natively!
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "id": user.id,
         "email": user.email,
@@ -39,9 +44,44 @@ pub async fn update_user(
      let _user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-     // Simulating username update constraints exactly.
      Ok(HttpResponse::Ok().json(serde_json::json!({
         "message": "Username successfully updated",
         "new_username": body.username
+    })))
+}
+
+/// Checks if a recipient exists in the system by email or public_key.
+/// Used by the frontend to decide: direct transfer vs. create link.
+pub async fn lookup_recipient(
+    pool: web::Data<DbPool>,
+    _req: HttpRequest,
+    body: web::Json<LookupRequest>
+) -> Result<HttpResponse, AppError> {
+    let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
+
+    // Look up by email first, then by public key
+    if let Some(ref email) = body.email {
+        if let Some(user) = User::find_by_email(&mut conn, email)? {
+            return Ok(HttpResponse::Ok().json(serde_json::json!({
+                "found": true,
+                "public_key": user.public_key,
+                "email": user.email,
+            })));
+        }
+    }
+
+    if let Some(ref pubkey) = body.public_key {
+        // Search by public_key
+        if let Some(user) = User::find_by_public_key(&mut conn, pubkey)? {
+            return Ok(HttpResponse::Ok().json(serde_json::json!({
+                "found": true,
+                "public_key": user.public_key,
+                "email": user.email,
+            })));
+        }
+    }
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "found": false,
     })))
 }

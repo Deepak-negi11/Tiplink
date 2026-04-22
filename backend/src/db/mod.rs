@@ -7,4 +7,4 @@ pub mod transaction;
 pub mod links;
 pub mod swap;
 
-pub use conn::Store;
+pub use conn::DbPool;

@@ -8,7 +8,6 @@ use crate::db::schema::payment_links;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::LinkStatus"]
-#[diesel(postgres_type(name = "link_status"))]
 pub enum LinkStatus {
     Active,
     Claimed,

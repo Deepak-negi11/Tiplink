@@ -2,6 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
 use std::collections::BTreeMap;
+use std::time::Instant;
 use frost_ed25519 as frost;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
@@ -10,16 +11,9 @@ use crate::middleware;
 use crate::vault;
 use crate::crypto;
 use crate::error::MpcError;
+use crate::util::parse_identifier;
 
-fn parse_identifier(id_str: &str) -> Result<frost::Identifier, MpcError> {
-    if let Ok(num) = id_str.parse::<u16>() {
-        return num.try_into()
-            .map_err(|_| MpcError::BadRequest(format!("Invalid FROST identifier from u16: {}", id_str)));
-    }
-    let quoted = format!("\"{}\"", id_str);
-    serde_json::from_str::<frost::Identifier>(&quoted)
-        .map_err(|e| MpcError::BadRequest(format!("Cannot parse FROST identifier '{}': {}", id_str, e)))
-}
+
 
 #[derive(Deserialize)]
 pub struct SignInitRequest {
@@ -86,6 +80,7 @@ pub async fn sign_init(
         nonces: None,
         key_package,
         pubkey_package,
+        created_at: Instant::now(),
     });
 
     Ok(HttpResponse::Ok().json(serde_json::json!({

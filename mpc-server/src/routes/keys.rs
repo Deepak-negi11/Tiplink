@@ -1,0 +1,37 @@
+use actix_web::{web, HttpResponse, HttpRequest};
+use serde::Deserialize;
+use uuid::Uuid;
+use frost_ed25519 as frost;
+
+use crate::state::MpcState;
+use crate::vault;
+use crate::error::MpcError;
+
+#[derive(Deserialize)]
+pub struct PubkeyRequest {
+    pub user_id: Uuid,
+}
+
+/// Retrieves the stored PublicKeyPackage for a user from this node's vault.
+/// Called by the backend during FROST signature aggregation.
+pub async fn get_pubkey_package(
+    state: web::Data<MpcState>,
+    body: web::Json<PubkeyRequest>,
+) -> Result<HttpResponse, MpcError> {
+    let user_id = body.user_id;
+
+    // Load the encrypted pubkey_package from vault
+    let (_key_pkg_bytes, pubkey_pkg_bytes) = vault::load_key_package(
+        user_id,
+        &state.aes_secret_key,
+    )?;
+
+    // Deserialize to verify it's valid
+    let pubkey_package: frost::keys::PublicKeyPackage = serde_json::from_slice(&pubkey_pkg_bytes)
+        .map_err(|e| MpcError::Internal(format!("Failed to deserialize PublicKeyPackage: {}", e)))?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "pubkey_package": pubkey_package,
+        "user_id": user_id,
+    })))
+}

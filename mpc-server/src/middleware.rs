@@ -3,6 +3,7 @@ use actix_web::web::Bytes;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use chrono::Utc;
+use crate::config::HMAC_TIMESTAMP_WINDOW_SECS;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -19,7 +20,7 @@ pub fn is_authentic(req: &HttpRequest, body_bytes: &Bytes, secret_key: &str) -> 
 
     let now = Utc::now().timestamp();
     let ts: i64 = timestamp_str.parse().unwrap_or(0);
-    if (now - ts).abs() > 300 {
+    if (now - ts).abs() > HMAC_TIMESTAMP_WINDOW_SECS {
         return false;
     }
 

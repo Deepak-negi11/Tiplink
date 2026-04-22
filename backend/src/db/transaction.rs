@@ -8,7 +8,6 @@ use crate::db::schema::transactions;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::db::schema::sql_types::TxType"]
-#[diesel(postgres_type(name = "tx_type"))]
 pub enum TxType {
     Deposit,
     Withdrawal,
