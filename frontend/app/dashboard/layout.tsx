@@ -9,7 +9,7 @@ import { useEffect } from "react";
 
 const navItems = [
   { label: "Wallet",      href: "/dashboard",        icon: Wallet },
-  { label: "Create Link", href: "/dashboard/create",  icon: Send },
+  { label: "Send",        href: "/dashboard/create",  icon: Send },
   { label: "Swap",        href: "/dashboard/swap",    icon: RefreshCcw },
 ];
 

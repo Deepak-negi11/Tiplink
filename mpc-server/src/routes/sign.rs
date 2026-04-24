@@ -114,11 +114,11 @@ pub async fn sign_round1(
         commitments
     };
 
-    let commitment_json = serde_json::to_value(&commitments)
+    let commitment_str = serde_json::to_string(&commitments)
         .map_err(|e| MpcError::Internal(format!("Failed to serialize commitments: {}", e)))?;
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "commitment": commitment_json
+        "commitment": serde_json::Value::String(commitment_str)
     })))
 }
 
@@ -153,8 +153,13 @@ pub async fn sign_round2(
 
     for (id_str, comm_value) in &payload.data.commitments {
         let identifier = parse_identifier(id_str)?;
-        let commitment: frost::round1::SigningCommitments = serde_json::from_value(comm_value.clone())
-            .map_err(|e| MpcError::BadRequest(format!("Invalid commitment for {}: {}", id_str, e)))?;
+        let commitment: frost::round1::SigningCommitments = if let Some(s) = comm_value.as_str() {
+            serde_json::from_str(s)
+                .map_err(|e| MpcError::BadRequest(format!("Invalid commitment string for {}: {}", id_str, e)))?
+        } else {
+            serde_json::from_value(comm_value.clone())
+                .map_err(|e| MpcError::BadRequest(format!("Invalid commitment value for {}: {}", id_str, e)))?
+        };
         commitments_map.insert(identifier, commitment);
     }
 

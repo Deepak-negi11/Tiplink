@@ -3268,6 +3268,7 @@ dependencies = [
  "actix-web",
  "aes-gcm",
  "base64 0.22.1",
+ "bs58",
  "chrono",
  "dashmap 6.1.0",
  "dotenvy",

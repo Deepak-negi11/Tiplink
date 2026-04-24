@@ -30,8 +30,11 @@ pub async fn get_pubkey_package(
     let pubkey_package: frost::keys::PublicKeyPackage = serde_json::from_slice(&pubkey_pkg_bytes)
         .map_err(|e| MpcError::Internal(format!("Failed to deserialize PublicKeyPackage: {}", e)))?;
 
+    let pubkey_package_str = serde_json::to_string(&pubkey_package)
+        .map_err(|e| MpcError::Internal(format!("Failed to serialize pubkey_package: {}", e)))?;
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "pubkey_package": pubkey_package,
+        "pubkey_package": serde_json::Value::String(pubkey_package_str),
         "user_id": user_id,
     })))
 }

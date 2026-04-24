@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
-import { ArrowDownUp, Settings2, Loader2, AlertTriangle, Check } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAuthStore, BalanceEntry } from "@/store/useStore";
+import { Card } from "@/components/ui/card";
 import { fetchApi } from "@/lib/api";
+import { BalanceEntry, useAuthStore } from "@/store/useStore";
+import { motion } from "framer-motion";
+import { AlertTriangle, ArrowDownUp, Check, Loader2, Settings2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const TOKENS = [
   { symbol: "SOL", mint: "So11111111111111111111111111111111111111112", color: "violet" },
@@ -227,7 +227,7 @@ export default function SwapInterface() {
         <div className="flex items-center justify-center -my-3 relative z-10">
           <button
             onClick={handleFlip}
-            className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-900 border-[3px] border-[#050507] rounded-xl flex items-center justify-center hover:bg-zinc-800 transition-all text-white hover:rotate-180 duration-300"
+            className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-900 border-[3px] border-[#050507] rounded-xl flex items-center justify-center hover:bg-zinc-800 transition-all text-white hover:rotate-180 duration-400"
           >
             <ArrowDownUp className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>

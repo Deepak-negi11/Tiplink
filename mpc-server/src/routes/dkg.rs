@@ -121,12 +121,25 @@ pub async fn dkg_round2(
 
     let mut packages_json = serde_json::Map::new();
     for (identifier, package) in &round2_packages {
-        let id_key = serde_json::to_string(identifier)
-            .map_err(|e| MpcError::Internal(format!("Failed to serialize identifier: {}", e)))?;
-        let id_key = id_key.trim_matches('"').to_string();
-        let pkg_value = serde_json::to_value(package)
+        // Reverse lookup the string key (e.g. "1", "2", "3") from payload.others
+        let mut id_key = String::new();
+        for (k, _) in &payload.others {
+            if let Ok(parsed) = parse_identifier(k) {
+                if parsed == *identifier {
+                    id_key = k.clone();
+                    break;
+                }
+            }
+        }
+        if id_key.is_empty() {
+            // Fallback just in case
+            let serialized = serde_json::to_string(identifier).unwrap_or_default();
+            id_key = serialized.trim_matches('"').to_string();
+        }
+
+        let pkg_str = serde_json::to_string(package)
             .map_err(|e| MpcError::Internal(format!("Failed to serialize round2 package: {}", e)))?;
-        packages_json.insert(id_key, pkg_value);
+        packages_json.insert(id_key, serde_json::Value::String(pkg_str));
     }
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -165,8 +178,13 @@ pub async fn dkg_finalize(
     let mut received_round2: BTreeMap<frost::Identifier, frost::keys::dkg::round2::Package> = BTreeMap::new();
     for (id_str, pkg_value) in &payload.round2_packages {
         let identifier = parse_identifier(id_str)?;
-        let package: frost::keys::dkg::round2::Package = serde_json::from_value(pkg_value.clone())
-            .map_err(|e| MpcError::BadRequest(format!("Invalid round2 package for {}: {}", id_str, e)))?;
+        let package: frost::keys::dkg::round2::Package = if let Some(s) = pkg_value.as_str() {
+            serde_json::from_str(s)
+                .map_err(|e| MpcError::BadRequest(format!("Invalid round2 package string for {}: {}", id_str, e)))?
+        } else {
+            serde_json::from_value(pkg_value.clone())
+                .map_err(|e| MpcError::BadRequest(format!("Invalid round2 package value for {}: {}", id_str, e)))?
+        };
         received_round2.insert(identifier, package);
     }
 
@@ -193,10 +211,10 @@ pub async fn dkg_finalize(
     let verifying_key = pubkey_package.verifying_key();
     let vk_bytes = verifying_key.serialize()
         .map_err(|e| MpcError::Internal(format!("Failed to serialize key: {}", e)))?;
-    let public_key_hex = hex::encode(&vk_bytes);
+    let public_key_bs58 = bs58::encode(&vk_bytes).into_string();
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "public_key": public_key_hex,
+        "public_key": public_key_bs58,
         "status": "key_package_stored"
     })))
 }

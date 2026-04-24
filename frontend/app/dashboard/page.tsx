@@ -16,10 +16,10 @@ import { fetchApi } from "@/lib/api";
 async function fetchSolPrice(): Promise<number> {
   try {
     const res = await fetch(
-      "https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112"
+      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
     );
     const data = await res.json();
-    return Number(data?.data?.["So11111111111111111111111111111111111111112"]?.price ?? 0);
+    return Number(data?.solana?.usd ?? 0);
   } catch {
     return 0;
   }

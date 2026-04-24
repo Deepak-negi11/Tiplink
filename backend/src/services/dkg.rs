@@ -66,12 +66,13 @@ pub async fn generate_keypair(config: &Config, user_id: Uuid) -> Result<String, 
     )?;
 
     // ========================================================================
-    // ROUND 3 (Finalize): Each node receives others' round2 packages, computes final key
-    // (FROST DKG part3)
-    // ========================================================================
     let r2_pkgs_aws = &r2_aws["round2_packages"];
     let r2_pkgs_do = &r2_do["round2_packages"];
     let r2_pkgs_cf = &r2_cf["round2_packages"];
+
+    println!("r2_pkgs_aws keys: {:?}", r2_pkgs_aws);
+    println!("r2_pkgs_do keys: {:?}", r2_pkgs_do);
+    println!("r2_pkgs_cf keys: {:?}", r2_pkgs_cf);
 
     let body3_aws = json!({
         "session_id": session_id, "user_id": user_id,
@@ -94,6 +95,10 @@ pub async fn generate_keypair(config: &Config, user_id: Uuid) -> Result<String, 
             "2": r2_pkgs_do.get("3").unwrap_or(&Value::Null),
         }
     }).to_string();
+
+    println!("body3_aws: {}", body3_aws);
+    println!("body3_do: {}", body3_do);
+    println!("body3_cf: {}", body3_cf);
 
     let (r3_aws, _r3_do, _r3_cf) = tokio::try_join!(
         post_to_node(&client, &config.aws, "/dkg/finalize", &body3_aws, key),

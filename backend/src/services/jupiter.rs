@@ -54,15 +54,16 @@ pub async fn get_quote(
     let client = Client::new();
 
     let url = format!(
-        "https://quote-api.jup.ag/v6/quote?inputMint={}&outputMint={}&amount={}&slippageBps={}",
+        "https://api.jup.ag/swap/v1/quote?inputMint={}&outputMint={}&amount={}&slippageBps={}",
         input_mint, output_mint, amount, slippage_bps
     );
 
     let response = client
         .get(&url)
+        .header("User-Agent", "TipLink-Backend/1.0")
         .send()
         .await
-        .map_err(|_| AppError::ExternalApi("Jupiter quote request failed".to_string()))?;
+        .map_err(|e| AppError::ExternalApi(format!("Jupiter quote request failed: {}", e)))?;
 
     if response.status().is_success() {
         let quote: JupiterQuote = response.json().await.map_err(|_| AppError::ExternalApi("Failed to parse Jupiter quote response".to_string()))?;
@@ -77,7 +78,7 @@ pub async fn get_swap_transaction(
     user_pubkey: &str
 ) -> Result<Vec<u8>, AppError> {
     let client = Client::new();
-    let url = "https://quote-api.jup.ag/v6/swap";
+    let url = "https://api.jup.ag/swap/v1/swap";
     
     let swap_req = SwapRequest {
         quote_response: quote,
@@ -87,6 +88,7 @@ pub async fn get_swap_transaction(
     
     let response = client
         .post(url)
+        .header("User-Agent", "TipLink-Backend/1.0")
         .json(&swap_req)
         .send()
         .await

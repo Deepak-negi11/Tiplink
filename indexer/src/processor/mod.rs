@@ -100,26 +100,28 @@ pub fn process_transaction(
     let mut token_diffs = std::collections::HashMap::new();
 
     for pre in &meta.pre_token_balances {
-        token_diffs.insert(pre.account_index, (pre, None));
+        token_diffs.insert(pre.account_index, (Some(pre.clone()), None));
     }
     for post in &meta.post_token_balances {
-        token_diffs.entry(post.account_index).and_modify(|e| e.1 = Some(post)).or_insert((&Default::default(), Some(post)));
+        token_diffs.entry(post.account_index).and_modify(|e| e.1 = Some(post.clone())).or_insert((None, Some(post.clone())));
     }
 
-    for (account_idx, (pre, post)) in token_diffs {
-        let owner = if let Some(p) = post {
-            &p.owner
+    for (_account_idx, (pre, post)) in token_diffs {
+        let owner = if let Some(ref p) = post {
+            p.owner.clone()
+        } else if let Some(ref p) = pre {
+            p.owner.clone()
         } else {
-            &pre.owner
+            continue;
         };
 
-        if let Some(user_id) = accounts.get_user_id(owner) {
-            let pre_amt: i128 = pre.ui_token_amount.as_ref().map(|amt| amt.amount.parse().unwrap_or(0)).unwrap_or(0);
-            let post_amt: i128 = post.and_then(|p| p.ui_token_amount.as_ref()).map(|amt| amt.amount.parse().unwrap_or(0)).unwrap_or(0);
+        if let Some(user_id) = accounts.get_user_id(&owner) {
+            let pre_amt: i128 = pre.as_ref().and_then(|p| p.ui_token_amount.as_ref()).map(|amt| amt.amount.parse().unwrap_or(0)).unwrap_or(0);
+            let post_amt: i128 = post.as_ref().and_then(|p| p.ui_token_amount.as_ref()).map(|amt| amt.amount.parse().unwrap_or(0)).unwrap_or(0);
             
             let diff = post_amt - pre_amt;
-            let mint = post.map(|p| p.mint.clone()).unwrap_or_else(|| pre.mint.clone());
-            let decimals = post.and_then(|p| p.ui_token_amount.as_ref()).map(|amt| amt.decimals).unwrap_or(0);
+            let mint = post.as_ref().map(|p| p.mint.clone()).unwrap_or_else(|| pre.as_ref().unwrap().mint.clone());
+            let decimals = post.as_ref().and_then(|p| p.ui_token_amount.as_ref()).map(|amt| amt.decimals).unwrap_or(0);
 
             if diff > 0 {
                  deposit::handle_deposit(
@@ -131,7 +133,7 @@ pub fn process_transaction(
                     decimals as i16,
                     &sig,
                     "Unknown Sender",
-                    owner,
+                    &owner,
                     update.slot as i64,
                 );
             } else if diff < 0 {
@@ -142,7 +144,7 @@ pub fn process_transaction(
                     &mint,
                     "SPL",
                     &sig,
-                    owner,
+                    &owner,
                     "Unknown Destination",
                     update.slot as i64,
                 );

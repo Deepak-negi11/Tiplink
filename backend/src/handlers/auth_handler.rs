@@ -44,9 +44,11 @@ pub async fn signup(
     // Run DKG across MPC nodes — no fallback, DKG must succeed.
     let dkg_conf = mpc_config()?;
     let public_key = generate_keypair(&dkg_conf, user_id).await
-        .map_err(|e| AppError::InternalServerError(
-            format!("Distributed key generation failed. MPC nodes may be offline: {}", e)
-        ))?;
+        .map_err(|e| {
+            let err_msg = format!("Distributed key generation failed. MPC nodes may be offline: {}", e);
+            println!("SIGNUP ERROR: {}", err_msg);
+            AppError::InternalServerError(err_msg)
+        })?;
     
     let user = User::signup(user_id, &mut conn, &req.email, &hashed, &public_key)?;
     

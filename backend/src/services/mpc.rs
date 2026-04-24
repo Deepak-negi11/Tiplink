@@ -76,10 +76,13 @@ async fn get_pubkey_package(
         let body_str = json!({ "user_id": user_id }).to_string();
         if let Ok(res) = post_to_node(client, url, "/keys/pubkey_package", &body_str, api_key).await {
             if let Some(pkg_val) = res.get("pubkey_package") {
-                let pkg: frost::keys::PublicKeyPackage = serde_json::from_value(pkg_val.clone())
-                    .map_err(|e| AppError::InternalServerError(
-                        format!("Failed to deserialize PublicKeyPackage: {}", e)
-                    ))?;
+                let pkg: frost::keys::PublicKeyPackage = if let Some(s) = pkg_val.as_str() {
+                    serde_json::from_str(s)
+                        .map_err(|e| AppError::InternalServerError(format!("Failed to deserialize PublicKeyPackage string: {}", e)))?
+                } else {
+                    serde_json::from_value(pkg_val.clone())
+                        .map_err(|e| AppError::InternalServerError(format!("Failed to deserialize PublicKeyPackage: {}", e)))?
+                };
                 return Ok(pkg);
             }
         }
@@ -178,8 +181,13 @@ pub async fn coordinate_transaction_signature(
             .map_err(|_| AppError::InternalServerError("Invalid node id in commitments".into()))?;
         let identifier: Identifier = node_id.try_into()
             .map_err(|_| AppError::InternalServerError("Invalid FROST identifier".into()))?;
-        let comm: frost::round1::SigningCommitments = serde_json::from_value(comm_val.clone())
-            .map_err(|e| AppError::InternalServerError(format!("Failed to parse commitment: {}", e)))?;
+        let comm: frost::round1::SigningCommitments = if let Some(s) = comm_val.as_str() {
+            serde_json::from_str(s)
+                .map_err(|e| AppError::InternalServerError(format!("Failed to parse commitment string: {}", e)))?
+        } else {
+            serde_json::from_value(comm_val.clone())
+                .map_err(|e| AppError::InternalServerError(format!("Failed to parse commitment: {}", e)))?
+        };
         frost_commitments.insert(identifier, comm);
     }
 
@@ -206,5 +214,8 @@ pub async fn coordinate_transaction_signature(
             format!("FROST signature aggregation failed: {}. This may indicate a corrupted shard or node mismatch.", e)
         ))?;
 
-    Ok(group_signature.serialize().to_vec())
+    let signature_bytes = group_signature.serialize()
+        .map_err(|e| AppError::InternalServerError(format!("Serialization failed: {}", e)))?;
+        
+    Ok(signature_bytes.to_vec())
 }

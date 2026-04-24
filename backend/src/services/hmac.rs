@@ -26,14 +26,21 @@ pub async fn post_to_node(
 ) -> Result<Value, AppError> {
     let (signature, timestamp) = hmac_sign(body_str, api_key);
 
-    let res = client.post(format!("{}{}", url, endpoint))
+    let response = client.post(format!("{}{}", url, endpoint))
         .header("X-Signature", signature)
         .header("X-Timestamp", timestamp)
         .header("Content-Type", "application/json")
         .body(body_str.to_string())
         .send().await
-        .map_err(|e| AppError::ExternalApi(format!("Node connection failed: {}", e)))?
-        .json::<Value>().await
+        .map_err(|e| AppError::ExternalApi(format!("Node connection failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(AppError::ExternalApi(format!("MPC Node error ({}): {}", status, text)));
+    }
+
+    let res = response.json::<Value>().await
         .map_err(|e| AppError::ExternalApi(format!("Invalid JSON from node: {}", e)))?;
 
     Ok(res)
