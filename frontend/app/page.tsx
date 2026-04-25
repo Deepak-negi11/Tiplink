@@ -78,8 +78,8 @@ export default function LandingPage() {
         </div>
         {/* Network status */}
         <div className="flex items-center gap-2.5 text-[#888880] text-sm">
-          <div className="w-2 h-2 rounded-full bg-[#00d26a] animate-pulse-green" />
-          <span>Solana Mainnet</span>
+          <div className="w-2 h-2 rounded-full bg-[#f5c518] animate-pulse" />
+          <span>Solana Devnet</span>
         </div>
       </header>
 

@@ -4,15 +4,18 @@ use uuid::Uuid;
 use crate::crypto::aes;
 use crate::error::MpcError;
 
-const VAULT_DIR: &str = "./vaults";
+fn vault_dir() -> String {
+    let node_id = std::env::var("NODE_ID").unwrap_or_else(|_| "1".to_string());
+    format!("./vaults/node{}", node_id)
+}
 
 fn ensure_vault_dir() -> Result<(), MpcError> {
-    fs::create_dir_all(VAULT_DIR)
+    fs::create_dir_all(vault_dir())
         .map_err(|e| MpcError::Internal(format!("Failed to create vault directory: {}", e)))
 }
 
 fn vault_path(user_id: Uuid, suffix: &str) -> String {
-    format!("{}/{}_{}.vault", VAULT_DIR, user_id, suffix)
+    format!("{}/{}_{}.vault", vault_dir(), user_id, suffix)
 }
 
 pub fn save_encrypted(

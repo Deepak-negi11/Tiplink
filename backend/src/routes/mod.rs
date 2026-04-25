@@ -9,11 +9,9 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use crate::middleware::jwt_validator;
 
 pub fn init_routes(cfg: &mut web::ServiceConfig) {
-    // Public routes — no auth required
     cfg.service(
         web::scope("/api")
             .configure(auth::configure)
-            // Protected routes — JWT required
             .service(
                 web::scope("")
                     .wrap(HttpAuthentication::bearer(jwt_validator))

@@ -8,6 +8,18 @@ use frost_ed25519::{self as frost, Identifier, round2::SignatureShare};
 use crate::error::AppError;
 use crate::services::dkg::Config;
 use crate::services::hmac::{post_to_node, post_to_node_with_session};
+use std::env;
+
+pub fn mpc_config() -> Result<Config, AppError> {
+    let aws = env::var("MPC_NODE_1")
+        .map_err(|_| AppError::InternalServerError("MPC_NODE_1 not configured".into()))?;
+    let do_ocean = env::var("MPC_NODE_2")
+        .map_err(|_| AppError::InternalServerError("MPC_NODE_2 not configured".into()))?;
+    let cloudflare = env::var("MPC_NODE_3")
+        .map_err(|_| AppError::InternalServerError("MPC_NODE_3 not configured".into()))?;
+    let api_keys = env::var("INTERNAL_MPC_KEY").unwrap_or_default();
+    Ok(Config { aws, do_ocean, cloudflare, api_keys })
+}
 
 async fn init_signing(
     client: &Client,
@@ -69,7 +81,6 @@ async fn get_pubkey_package(
     user_id: Uuid,
     api_key: &str,
 ) -> Result<frost::keys::PublicKeyPackage, AppError> {
-    // Try each node until one returns the stored pubkey package
     let node_urls = [&config.aws, &config.do_ocean, &config.cloudflare];
     
     for url in node_urls {
@@ -108,12 +119,10 @@ pub async fn coordinate_transaction_signature(
         (nodes.cloudflare.clone(), 3u16),
     ];
 
-    // Initialize signing sessions on all nodes
     for (url, _) in &node_urls {
         init_signing(&client, url, &key, session_id, user_id, tx_bytes).await?;
     }
 
-    // Round 1: Collect signing commitments (threshold = 2 of 3)
     let (tx_comm, mut rx_comm) = mpsc::channel(3);
     for (node_idx, (url, _)) in node_urls.iter().enumerate() {
         let client_c = client.clone();
@@ -122,8 +131,13 @@ pub async fn coordinate_transaction_signature(
         let tx_c = tx_comm.clone();
 
         tokio::spawn(async move {
-            if let Ok(comm) = get_commitment(&client_c, &url_c, &key_c, session_id, user_id).await {
-                let _ = tx_c.send((node_idx, comm)).await;
+            match get_commitment(&client_c, &url_c, &key_c, session_id, user_id).await {
+                Ok(comm) => {
+                    let _ = tx_c.send((node_idx, comm)).await;
+                }
+                Err(e) => {
+                    tracing::error!("MPC Round 1 Failure on Node {}: {:?}", node_idx + 1, e);
+                }
             }
         });
     }
@@ -145,7 +159,6 @@ pub async fn coordinate_transaction_signature(
     }
     let comms_value = json!(commitments);
 
-    // Round 2: Collect partial signature shares (threshold = 2 of 3)
     let (tx_sig, mut rx_sig) = mpsc::channel(3);
     for &node_idx in &responding_nodes {
         let (url, node_id) = node_urls[node_idx].clone();
@@ -155,8 +168,13 @@ pub async fn coordinate_transaction_signature(
         let tx_sig_c = tx_sig.clone();
 
         tokio::spawn(async move {
-            if let Ok(psig) = get_partial_sig(&client_c, &url, &key_c, session_id, user_id, comms_val).await {
-                let _ = tx_sig_c.send((node_id, psig)).await;
+            match get_partial_sig(&client_c, &url, &key_c, session_id, user_id, comms_val).await {
+                Ok(psig) => {
+                    let _ = tx_sig_c.send((node_id, psig)).await;
+                }
+                Err(e) => {
+                    tracing::error!("MPC Round 2 Failure on Node {}: {:?}", node_id, e);
+                }
             }
         });
     }
@@ -174,7 +192,6 @@ pub async fn coordinate_transaction_signature(
         return Err(AppError::ExternalApi("Threshold not reached for Round 2".to_string()));
     }
 
-    // Reconstruct the signing commitments map for aggregation
     let mut frost_commitments: BTreeMap<Identifier, frost::round1::SigningCommitments> = BTreeMap::new();
     for (id_str, comm_val) in &commitments {
         let node_id: u16 = id_str.parse()
@@ -193,7 +210,6 @@ pub async fn coordinate_transaction_signature(
 
     let signing_package = frost::SigningPackage::new(frost_commitments, tx_bytes);
 
-    // Deserialize partial signature shares
     let mut signature_shares: BTreeMap<Identifier, SignatureShare> = BTreeMap::new();
     for (node_id, psig_hex) in &partial_sigs {
         let share_bytes = hex::decode(psig_hex)
@@ -205,10 +221,8 @@ pub async fn coordinate_transaction_signature(
         signature_shares.insert(identifier, share);
     }
 
-    // Retrieve the group PublicKeyPackage from MPC nodes
     let pubkey_package = get_pubkey_package(&client, nodes, user_id, &key).await?;
 
-    // REAL aggregation: combine partial signatures into a full group signature
     let group_signature = frost::aggregate(&signing_package, &signature_shares, &pubkey_package)
         .map_err(|e| AppError::InternalServerError(
             format!("FROST signature aggregation failed: {}. This may indicate a corrupted shard or node mismatch.", e)

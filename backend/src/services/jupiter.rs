@@ -26,7 +26,10 @@ pub struct JupiterQuote {
     pub other_amount_threshold: String,
     #[serde(rename = "priceImpactPct")]
     pub price_impact_pct: String,
+    #[serde(rename = "routePlan")]
     pub route_plan: Vec<serde_json::Value>,
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -108,7 +111,6 @@ pub async fn get_swap_transaction(
 }
 
 pub fn calculate_fee(amount: u64, fee_bps: u16) -> (u64, u64) {
-    // Math bounds shifted to u128 safely preventing any extreme transaction u64 overflow
     let fee_amount = (amount as u128 * fee_bps as u128 / 10000) as u64;
     let amount_after_fee = amount - fee_amount;
     

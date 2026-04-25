@@ -23,6 +23,7 @@ function TokenIcon({ symbol }: { symbol: string }) {
   const colors: Record<string, { bg: string; text: string; border: string }> = {
     SOL: { bg: "bg-violet-500/15", text: "text-violet-400", border: "border-violet-500/20" },
     USDC: { bg: "bg-sky-500/15", text: "text-sky-400", border: "border-sky-500/20" },
+    WBTC: { bg: "bg-orange-500/15", text: "text-orange-400", border: "border-orange-500/20" },
   };
   const c = colors[symbol] || { bg: "bg-zinc-500/15", text: "text-zinc-400", border: "border-zinc-500/20" };
   return (
@@ -45,12 +46,10 @@ export default function SendPage() {
   const [copied, setCopied] = useState(false);
   const [localBalances, setLocalBalances] = useState<BalanceEntry[]>([]);
 
-  // Success states
   const [success, setSuccess] = useState(false);
   const [resultType, setResultType] = useState<"direct" | "link">("direct");
   const [resultData, setResultData] = useState<{ signature?: string; claim_url?: string }>({});
 
-  // Lookup state
   const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
 
   useEffect(() => {
@@ -75,19 +74,18 @@ export default function SendPage() {
 
   const tokenMint = asset === "SOL"
     ? "So11111111111111111111111111111111111111112"
-    : "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    : asset === "USDC"
+    ? "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+    : "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh";
 
-  // Auto-detect mode from recipient input
   useEffect(() => {
     if (!recipient) {
       setLookupResult(null);
       return;
     }
-    // Email pattern
     if (recipient.includes("@")) {
       setMode("email");
     }
-    // Solana address pattern (base58, 32-44 chars)
     else if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(recipient)) {
       setMode("address");
     }
@@ -96,7 +94,6 @@ export default function SendPage() {
     }
   }, [recipient]);
 
-  // Look up recipient when mode is email or address
   useEffect(() => {
     if (!recipient || mode === "link") {
       setLookupResult(null);
@@ -140,12 +137,10 @@ export default function SendPage() {
     setError("");
 
     try {
-      // Decide: direct transfer or create link
       const recipientExists = lookupResult?.found === true;
       const recipientPubkey = lookupResult?.public_key;
 
       if (recipientExists && recipientPubkey) {
-        // ========== DIRECT TRANSFER ==========
         const now = Math.floor(Date.now() / 1000);
         const sendData = await fetchApi<{ nonce: string; unsigned_tx: string }>("/wallet/send", {
           method: "POST",
@@ -163,7 +158,6 @@ export default function SendPage() {
         setResultData({ signature: sendData.nonce });
         setSuccess(true);
       } else {
-        // ========== CREATE TIPLINK ==========
         const data = await fetchApi<{ link_id: string; claim_url: string }>("/link/create", {
           method: "POST",
           token,
@@ -202,7 +196,6 @@ export default function SendPage() {
     setLookupResult(null);
   };
 
-  // ========== SUCCESS SCREEN ==========
   if (success) {
     return (
       <motion.div
@@ -263,7 +256,6 @@ export default function SendPage() {
     );
   }
 
-  // ========== SEND FORM ==========
   return (
     <div className="flex flex-col max-w-md mx-auto">
       <div className="mb-8">
@@ -375,6 +367,7 @@ export default function SendPage() {
                 >
                   <option value="SOL">SOL</option>
                   <option value="USDC">USDC</option>
+                  <option value="WBTC">WBTC</option>
                 </select>
                 <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
                   <TokenIcon symbol={asset} />

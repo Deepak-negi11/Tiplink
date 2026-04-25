@@ -27,9 +27,6 @@ pub async fn generate_keypair(config: &Config, user_id: Uuid) -> Result<String, 
     let session_id = Uuid::new_v4();
     let key = &config.api_keys;
 
-    // ========================================================================
-    // ROUND 1: Each node generates its commitment (FROST DKG part1)
-    // ========================================================================
     let body1 = json!({ "session_id": session_id, "user_id": user_id }).to_string();
 
     let (r1_aws, r1_do, r1_cf) = tokio::try_join!(
@@ -42,10 +39,6 @@ pub async fn generate_keypair(config: &Config, user_id: Uuid) -> Result<String, 
     let c2 = &r1_do["commitment"];
     let c3 = &r1_cf["commitment"];
 
-    // ========================================================================
-    // ROUND 2: Each node receives others' round1 packages, produces round2 packages
-    // (FROST DKG part2)
-    // ========================================================================
     let body2_aws = json!({
         "session_id": session_id, "user_id": user_id,
         "others": { "2": c2, "3": c3 }
@@ -65,7 +58,6 @@ pub async fn generate_keypair(config: &Config, user_id: Uuid) -> Result<String, 
         post_to_node(&client, &config.cloudflare, "/dkg/round2", &body2_cf, key),
     )?;
 
-    // ========================================================================
     let r2_pkgs_aws = &r2_aws["round2_packages"];
     let r2_pkgs_do = &r2_do["round2_packages"];
     let r2_pkgs_cf = &r2_cf["round2_packages"];

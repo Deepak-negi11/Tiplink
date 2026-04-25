@@ -38,7 +38,6 @@ pub async fn connect_and_stream(
             }
         };
 
-        // If no addresses mapped yet, provide a dummy fallback
         let addrs = if tracked_addresses.is_empty() {
             vec!["11111111111111111111111111111111".to_string()]
         } else {
@@ -46,9 +45,6 @@ pub async fn connect_and_stream(
         };
 
         let mut transactions_filter = HashMap::new();
-        // Subscribe to all transactions involving the tracked addresses
-        // This is why gRPC is efficient — the filtering happens on the Geyser sever,
-        // we only receive network traffic directly correlated to our users!
         transactions_filter.insert(
             "tracked_wallets".to_string(),
             SubscribeRequestFilterTransactions {
@@ -83,12 +79,10 @@ pub async fn connect_and_stream(
 
         tracing::info!("Successfully subscribed to Yellowstone stream.");
 
-        // Read stream infinitely
         while let Some(msg) = stream.next().await {
             match msg {
                 Ok(update) => {
                     if let Some(UpdateOneof::Transaction(tx)) = update.update_oneof {
-                        // Forward over tokio channel to the processor loop
                         if tx_sender.send(tx).await.is_err() {
                             tracing::error!("Transaction receiver channel closed. Exiting stream.");
                             return;

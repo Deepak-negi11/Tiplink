@@ -38,4 +38,4 @@ pub struct TransactionHistoryResponse{
     pub amount:f64,
     pub block_time:DateTime<Utc>
 }
-
+

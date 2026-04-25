@@ -14,22 +14,16 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/50 disabled:pointer-events-none disabled:opacity-40 cursor-pointer active:scale-[0.97]",
           {
-            // Primary — electric yellow fill, black text
             "bg-[#f5c518] text-[#0a0a00] hover:bg-[#ffd740] shadow-lg shadow-yellow-500/20 hover:shadow-yellow-500/35 tracking-tight":
               variant === "default",
-            // Destructive
             "bg-[#ff3b30]/90 text-white hover:bg-[#ff3b30] shadow-lg shadow-red-500/20":
               variant === "destructive",
-            // Outline — yellow border, transparent bg
             "border border-[#f5c518]/30 bg-transparent text-[#f5c518] hover:bg-[#f5c518]/8 hover:border-[#f5c518]/60":
               variant === "outline",
-            // Secondary — dark surface
             "bg-[#222222] text-[#e8e3d5] hover:bg-[#2d2d2d] border border-white/5":
               variant === "secondary",
-            // Ghost
             "hover:bg-white/[0.05] text-[#888880] hover:text-[#e8e3d5]":
               variant === "ghost",
-            // Link
             "text-[#f5c518] underline-offset-4 hover:underline":
               variant === "link",
           },

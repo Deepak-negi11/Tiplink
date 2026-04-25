@@ -47,13 +47,10 @@ fn get_token_decimals(conn: &mut diesel::PgConnection, user_id: Uuid, mint: &str
     match balance {
         Some(b) => Ok(b.decimals),
         None => {
-            // Default decimals by well-known mint addresses
             match mint {
-                // USDC
                 "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => Ok(6),
-                // USDT
                 "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => Ok(6),
-                // Native SOL (wrapped SOL mint)
+                "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh" => Ok(8),
                 "So11111111111111111111111111111111111111112" => Ok(9),
                 _ => Err(AppError::BadRequest(format!("Unknown token mint: {}. Cannot determine decimals.", mint))),
             }
@@ -70,7 +67,6 @@ pub async fn create_link(
     let user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-    // Look up correct decimals for this token mint
     let decimals = get_token_decimals(&mut conn, user_id, &body.token_mint)?;
     let multiplier = 10_i64.pow(decimals as u32);
     let amount_i64 = (body.amount * multiplier as f64) as i64;
@@ -82,28 +78,23 @@ pub async fn create_link(
         return Err(AppError::BadRequest("Insufficient available balance".to_string()));
     }
 
-    // 2. generate secret_code=random_string()
     let secret_code: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(16)
         .map(char::from)
         .collect();
 
-    // 3. claim_hash=SHA256(secret_code)
     let mut hasher = Sha256::new();
     hasher.update(secret_code.as_bytes());
     let claim_hash = format!("{:x}", hasher.finalize());
 
-    // 4. lock balance locally preventing double-spends
     Balance::lock_funds(&mut conn, user_id, &body.token_mint, amount_i64)?;
 
-    // 5. Derive a deterministic escrow PDA from the user's pubkey + link seed
     let user_pubkey = get_user_pubkey(&mut conn, user_id)?;
     let link_id = Uuid::new_v4();
     let seed = format!("tiplink_escrow_{}", link_id);
     let escrow_pda = derive_escrow_pda(&user_pubkey, &seed)?;
 
-    // 6. db::links::create
     let new_link = NewPaymentLink {
         id: link_id,
         creator_id: user_id,
@@ -120,9 +111,6 @@ pub async fn create_link(
     PaymentLink::create_link(&mut conn, new_link)
         .map_err(|_| AppError::InternalServerError("Failed to create link record".to_string()))?;
 
-    // 7. Return link_id and the claim URL with the secret embedded.
-    // The secret is returned ONLY to the creator so they can share it.
-    // It is NOT stored server-side (only the hash is stored).
     let claim_url = format!("/claim/{}?code={}", link_id, secret_code);
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -140,8 +128,6 @@ fn derive_escrow_pda(user_pubkey: &str, seed: &str) -> Result<String, AppError> 
     let _user_pk = Pubkey::from_str(user_pubkey)
         .map_err(|_| AppError::InternalServerError("Invalid user public key for PDA derivation".into()))?;
 
-    // Derive a PDA using the System Program as the program_id and the seed.
-    // In production, this should use your deployed escrow program's ID.
     let escrow_program_id = Pubkey::from_str(
         &env::var("ESCROW_PROGRAM_ID")
             .unwrap_or_else(|_| "11111111111111111111111111111111".to_string())
@@ -165,7 +151,6 @@ pub async fn get_link(
     let link = PaymentLink::find_by_id(&mut conn, link_id)?
         .ok_or_else(|| AppError::BadRequest("Link not found".to_string()))?;
 
-    // NEVER returns claim_hash or secret_code
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": link.status,
         "amount": link.amount,
@@ -185,37 +170,29 @@ pub async fn claim_link(
     let user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-    // 1. find link
     let link = PaymentLink::find_by_id(&mut conn, link_id)?
         .ok_or_else(|| AppError::BadRequest("Link not found".to_string()))?;
 
-    // 2. check status=funded (Active)
     if link.status != LinkStatus::Active {
         return Err(AppError::BadRequest("Link is not active or already claimed".to_string()));
     }
 
-    // 3. Check expiry
     if link.expires_at < Utc::now() {
         return Err(AppError::BadRequest("Link has expired".to_string()));
     }
 
-    // 4. DKG for new user if needed
     let dkg_conf = mpc_config()?;
     let _ = crate::services::dkg::generate_keypair(&dkg_conf, user_id).await;
 
-    // 5. build escrow release tx
     let rpc_url = solana_rpc_url();
     let rpc_client = RpcClient::new(rpc_url);
     let unsigned_tx = build_transfer_tx(&rpc_client, &link.escrow_pda, &body.receiver_address, link.amount as u64).await?;
 
-    // 6. sign via MPC
     let signed_buffer_b64 = coordinate_transaction_signature(&dkg_conf, user_id, unsigned_tx.as_bytes()).await?;
     let signed_tx = BASE64.decode(&signed_buffer_b64).unwrap_or(unsigned_tx.as_bytes().to_vec());
 
-    // 7. submit to Solana
     let tx_hash = submit_transaction(&rpc_client, &String::from_utf8(signed_tx).unwrap_or_default()).await?;
 
-    // 8. Finalize: unlock and deduct from creator's balance, mark link as claimed
     Balance::finalize_claim(&mut conn, link.creator_id, &link.token_mint, link.amount)?;
     PaymentLink::mark_as_claimed(&mut conn, link.id, user_id, &tx_hash)?;
 

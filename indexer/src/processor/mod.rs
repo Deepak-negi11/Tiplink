@@ -22,7 +22,6 @@ pub fn process_transaction(
         None => return,
     };
 
-    // Ignore failed transactions
     if meta.err.is_some() {
         return;
     }
@@ -37,32 +36,26 @@ pub fn process_transaction(
         None => return,
     };
 
-    // Extract signature
     let sig_bytes = tx.signature.clone();
     if sig_bytes.is_empty() {
         return;
     }
     let sig = bs58::encode(&sig_bytes).into_string();
 
-    // Map account indices to actual base58 public keys
     let account_keys: Vec<String> = message
         .account_keys
         .iter()
         .map(|k| bs58::encode(k).into_string())
         .collect();
 
-    // Calculate SOL changes
     for (i, pubkey) in account_keys.iter().enumerate() {
-        // Did we track this user?
         if let Some(user_id) = accounts.get_user_id(pubkey) {
             let pre_bal = meta.pre_balances.get(i).copied().unwrap_or(0);
             let post_bal = meta.post_balances.get(i).copied().unwrap_or(0);
 
             let diff = post_bal as i128 - pre_bal as i128;
             
-            // Handle SOL transfers
             if diff > 0 {
-                // Deposit
                 tracing::info!("Detected SOL deposit of {} lamports to {} (tx: {})", diff, pubkey, sig);
                 deposit::handle_deposit(
                     pool,
@@ -77,8 +70,6 @@ pub fn process_transaction(
                     update.slot as i64,
                 );
             } else if diff < 0 {
-                // Withdrawal or fee
-                // Note: We might want to ignore tiny diffs that are just gas fees, but for now we track them.
                 tracing::info!("Detected SOL withdrawal of {} lamports from {} (tx: {})", diff.abs(), pubkey, sig);
                 withdraw::handle_withdraw(
                     pool,
@@ -95,8 +86,6 @@ pub fn process_transaction(
         }
     }
 
-    // Calculate SPL Token changes
-    // We use a Map to group pre and post balances by account_index
     let mut token_diffs = std::collections::HashMap::new();
 
     for pre in &meta.pre_token_balances {
@@ -152,6 +141,4 @@ pub fn process_transaction(
         }
     }
 
-    // TODO: Detect Jupiter / Swap program invocations via instructions
-    // TODO: Detect TipLink program invocations via instructions
 }

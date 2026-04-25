@@ -5,6 +5,7 @@ use std::env;
 pub struct IndexerConfig {
     pub grpc_endpoint: String,
     pub grpc_token: Option<String>,
+    pub solana_rpc_url: String,
     pub database_url: String,
     pub tracked_programs: Vec<String>,
 }
@@ -17,9 +18,12 @@ impl IndexerConfig {
         dotenv().ok();
 
         let grpc_endpoint = env::var("GRPC_ENDPOINT")
-            .expect("FATAL: GRPC_ENDPOINT must be set. Example: https://mainnet.helius-rpc.com/?api-key=YOUR_KEY");
+            .unwrap_or_default();
 
         let grpc_token = env::var("GRPC_TOKEN").ok();
+
+        let solana_rpc_url = env::var("SOLANA_RPC_URL")
+            .expect("FATAL: SOLANA_RPC_URL must be set");
 
         let database_url = env::var("DATABASE_URL")
             .expect("DATABASE_URL must be set");
@@ -32,6 +36,7 @@ impl IndexerConfig {
         Self {
             grpc_endpoint,
             grpc_token,
+            solana_rpc_url,
             database_url,
             tracked_programs,
         }

@@ -34,7 +34,7 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 
 pub fn generate_access_token(user_id: Uuid, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let expiration = Utc::now()
-        .checked_add_signed(Duration::minutes(15))
+        .checked_add_signed(Duration::days(1))
         .expect("Valid Timestamp")
         .timestamp() as usize;
 

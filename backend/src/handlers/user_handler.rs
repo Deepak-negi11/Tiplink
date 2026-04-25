@@ -59,7 +59,6 @@ pub async fn lookup_recipient(
 ) -> Result<HttpResponse, AppError> {
     let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
 
-    // Look up by email first, then by public key
     if let Some(ref email) = body.email {
         if let Some(user) = User::find_by_email(&mut conn, email)? {
             return Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -71,7 +70,6 @@ pub async fn lookup_recipient(
     }
 
     if let Some(ref pubkey) = body.public_key {
-        // Search by public_key
         if let Some(user) = User::find_by_public_key(&mut conn, pubkey)? {
             return Ok(HttpResponse::Ok().json(serde_json::json!({
                 "found": true,

@@ -12,7 +12,6 @@ import Link from "next/link";
 import { useAuthStore, BalanceEntry } from "@/store/useStore";
 import { fetchApi } from "@/lib/api";
 
-/** Fetches live SOL/USD price from Jupiter Price API v2 */
 async function fetchSolPrice(): Promise<number> {
   try {
     const res = await fetch(
@@ -113,14 +112,14 @@ export default function Dashboard() {
     loadBalances();
     loadTransactions();
     fetchSolPrice().then(setSolPrice);
-    // Refresh SOL price every 30 seconds
     const priceInterval = setInterval(() => fetchSolPrice().then(setSolPrice), 30_000);
     return () => clearInterval(priceInterval);
   }, [loadBalances, loadTransactions]);
 
   const totalUsd = balances.reduce((sum, b) => {
-    if (b.symbol === "SOL") return sum + (b.available / 10 ** b.decimals) * solPrice;
-    if (b.symbol === "USDC" || b.symbol === "USDT") return sum + b.available / 10 ** b.decimals;
+    const sym = b.symbol || (b as any).token_symbol;
+    if (sym === "SOL") return sum + (b.available / 10 ** b.decimals) * solPrice;
+    if (sym === "USDC" || sym === "USDT") return sum + b.available / 10 ** b.decimals;
     return sum;
   }, 0);
 
@@ -247,24 +246,26 @@ export default function Dashboard() {
             </div>
           ) : (
             balances.map((b, i) => {
+              const sym = b.symbol || (b as any).token_symbol || "???";
+              const mnt = b.mint || (b as any).token_mint || "";
               const human = (b.available / 10 ** b.decimals).toFixed(b.decimals > 6 ? 4 : 2);
-              const usd = b.symbol === "SOL"
+              const usd = sym === "SOL"
                 ? (b.available / 10 ** b.decimals) * 170
-                : b.symbol === "USDC" || b.symbol === "USDT"
+                : sym === "USDC" || sym === "USDT"
                   ? b.available / 10 ** b.decimals : 0;
               return (
                 <motion.div
-                  key={b.mint}
+                  key={mnt || i}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.06 }}
                   className="flex items-center justify-between px-5 py-4 hover:bg-[#f5c518]/[0.03] transition-colors border-b border-[rgba(245,197,24,0.06)] last:border-0"
                 >
                   <div className="flex items-center gap-4">
-                    <TokenBadge symbol={b.symbol} />
+                    <TokenBadge symbol={sym} />
                     <div>
-                      <p className="font-display font-bold text-sm text-white">{b.symbol}</p>
-                      <p className="text-xs text-[#555550] font-mono">{b.mint.slice(0, 8)}...</p>
+                      <p className="font-display font-bold text-sm text-white">{sym}</p>
+                      <p className="text-xs text-[#555550] font-mono">{mnt.slice(0, 8)}...</p>
                     </div>
                   </div>
                   <div className="text-right">

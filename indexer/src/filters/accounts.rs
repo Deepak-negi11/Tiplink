@@ -24,7 +24,7 @@ impl TrackedAccounts {
         for addr in &addresses {
             map.insert(addr.public_key.clone(), addr.id);
         }
-        tracing::info!("Tracking {} wallet addresses", map.len());
+        tracing::info!("Tracking {} wallet addresses: {:?}", map.len(), map.keys().collect::<Vec<_>>());
     }
 
     pub fn get_user_id(&self, address: &str) -> Option<Uuid> {

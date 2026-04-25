@@ -1,14 +1,15 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet, Send, RefreshCcw, LogOut, ChevronRight } from "lucide-react";
+import { Wallet, Send, RefreshCcw, LogOut, ChevronRight, ArrowDownToLine } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useStore";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const navItems = [
-  { label: "Wallet",      href: "/dashboard",        icon: Wallet },
+  { label: "Wallet",      href: "/dashboard",         icon: Wallet },
+  { label: "Deposit",     href: "/dashboard/deposit", icon: ArrowDownToLine },
   { label: "Send",        href: "/dashboard/create",  icon: Send },
   { label: "Swap",        href: "/dashboard/swap",    icon: RefreshCcw },
 ];
@@ -18,9 +19,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router   = useRouter();
   const { user, token, logout } = useAuthStore();
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    if (!token) router.push("/");
-  }, [token, router]);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !token) router.push("/");
+  }, [token, mounted, router]);
+
+  if (!mounted) return null;
 
   const handleLogout = () => { logout(); router.push("/"); };
   const shortEmail   = user?.email ? user.email.split("@")[0] : "";

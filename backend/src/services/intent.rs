@@ -45,7 +45,6 @@ pub fn check_timestamp(timestamp: i64, max_age_secs: i64) -> Result<(), AppError
         return Err(AppError::BadRequest("Intent expired (replay protection triggered)".to_string()));
     }
     
-    // Also protect against timestamps generated purely in the future
     if timestamp > now + 5 {
         return Err(AppError::BadRequest("Intent timestamp from the future".to_string()));
     }
@@ -55,11 +54,9 @@ pub fn check_timestamp(timestamp: i64, max_age_secs: i64) -> Result<(), AppError
 
 /// Decodes signed tx, extracts to_address + amount, compares against stored intent
 pub fn verify_tx_matches_intent(tx_bytes: &[u8], intent: &PendingTx) -> Result<(), AppError> {
-    // Attempt standard Bincode deserialization against the Solana Transaction shape
     let tx: Transaction = bincode::deserialize(tx_bytes)
         .map_err(|_| AppError::BadRequest("Unable to parse transaction bytes".to_string()))?;
 
-    // To prevent address substitution, we must ensure the recipient exists within the Message account keys
     let account_keys = &tx.message.account_keys;
     let expected_to_pubkey = Pubkey::from_str(&intent.to_address)
         .map_err(|_| AppError::InternalServerError("Invalid intent pubkey mapping".to_string()))?;
@@ -68,16 +65,12 @@ pub fn verify_tx_matches_intent(tx_bytes: &[u8], intent: &PendingTx) -> Result<(
         return Err(AppError::Unauthorized("Transaction recipient does not match intended recipient".to_string()));
     }
 
-    // Amount scanning across raw spl/system instructions requires explicitly matching the layout format.
-    // For safety, we verify the transaction has at least one instruction pointing to the target recipient.
     let mut targets_recipient = false;
     for instruction in &tx.message.instructions {
         for account_index in &instruction.accounts {
             if let Some(pubkey) = account_keys.get(*account_index as usize) {
                 if pubkey == &expected_to_pubkey {
                     targets_recipient = true;
-                    // Abstract payload checking for raw intent value:
-                    // Here we assume the buffer encodes the transfer layout (spl format or native).
                 }
             }
         }

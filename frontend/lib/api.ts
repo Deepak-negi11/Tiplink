@@ -28,7 +28,6 @@ export async function fetchApi<T>(endpoint: string, options: RequestOptions = {}
     throw new Error(errorData?.error || errorData?.message || `API request failed: ${response.statusText}`);
   }
 
-  // Handle empty 204 responses or similar
   const text = await response.text();
   return text ? JSON.parse(text) : {};
 }

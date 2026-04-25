@@ -9,27 +9,35 @@ import { AlertTriangle, ArrowDownUp, Check, Loader2, Settings2 } from "lucide-re
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const TOKENS = [
-  { symbol: "SOL", mint: "So11111111111111111111111111111111111111112", color: "violet" },
-  { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", color: "sky" },
+  { symbol: "SOL", mint: "So11111111111111111111111111111111111111112", color: "violet", logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png" },
+  { symbol: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", color: "sky", logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png" },
+  { symbol: "WBTC", mint: "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh", color: "orange", logoURI: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh/logo.png" },
 ];
 
 interface QuoteResponse {
-  input_amount: number;
-  output_amount: number;
-  price_impact: number;
-  fee_amount: number;
+  quote: any;
+  fee_breakdown: {
+    total_input: number;
+    fee_amount: number;
+    swap_amount: number;
+    fee_bps: number;
+  };
 }
 
-function TokenButton({ symbol, color, onClick }: { symbol: string; color: string; onClick?: () => void }) {
+function TokenButton({ symbol, color, logoURI, onClick }: { symbol: string; color: string; logoURI?: string; onClick?: () => void }) {
   const styles: Record<string, string> = {
     violet: "bg-violet-500/10 border-violet-500/20 text-violet-400 hover:bg-violet-500/15",
     sky: "bg-sky-500/10 border-sky-500/20 text-sky-400 hover:bg-sky-500/15",
   };
   return (
     <button onClick={onClick} className={`rounded-xl px-3 py-2.5 border font-semibold flex items-center gap-2 transition-colors text-sm ${styles[color] || styles.violet}`}>
-      <div className={`w-5 h-5 rounded-full bg-${color}-500/20 border border-${color}-500/30 flex items-center justify-center text-[10px] font-bold`}>
-        {symbol.charAt(0)}
-      </div>
+      {logoURI ? (
+        <img src={logoURI} alt={symbol} className="w-5 h-5 rounded-full" />
+      ) : (
+        <div className={`w-5 h-5 rounded-full bg-${color}-500/20 border border-${color}-500/30 flex items-center justify-center text-[10px] font-bold`}>
+          {symbol.charAt(0)}
+        </div>
+      )}
       {symbol}
     </button>
   );
@@ -94,7 +102,8 @@ export default function SwapInterface() {
       });
       setQuote(data);
       const outDecimals = outputToken.symbol === "SOL" ? 9 : 6;
-      setOutputAmount((data.output_amount / 10 ** outDecimals).toFixed(outDecimals > 6 ? 4 : 2));
+      const outAmountRaw = (data as any).quote?.outAmount || "0";
+      setOutputAmount((parseInt(outAmountRaw) / 10 ** outDecimals).toFixed(outDecimals > 6 ? 4 : 2));
     } catch (err: any) {
       setError(err.message || "Failed to fetch quote");
       setOutputAmount("");
@@ -128,17 +137,23 @@ export default function SwapInterface() {
     setSuccess("");
     try {
       const decimals = inputToken.symbol === "SOL" ? 9 : 6;
-      const rawAmount = Math.floor(parseFloat(inputAmount) * 10 ** decimals);
-      await fetchApi("/swap/execute", {
+      const { nonce } = await fetchApi<{ nonce: string }>("/swap/execute", {
         method: "POST",
         token,
         body: {
-          input_mint: inputToken.mint,
-          output_mint: outputToken.mint,
-          amount: rawAmount,
-          slippage_bps: slippage,
+          quote: (quote as any).quote,
         },
       });
+
+      await fetchApi("/swap/submit", {
+        method: "POST",
+        token,
+        body: {
+          nonce,
+          signed_tx: [], // Backend now handles MPC signing internally for swaps
+        },
+      });
+
       setSuccess(`Swapped ${inputAmount} ${inputToken.symbol} → ${outputAmount} ${outputToken.symbol}`);
       setInputAmount("");
       setOutputAmount("");
@@ -219,7 +234,7 @@ export default function SwapInterface() {
               onChange={(e) => handleInputChange(e.target.value)}
               className="bg-transparent text-3xl sm:text-4xl font-bold text-white outline-none w-[60%] placeholder:text-zinc-800"
             />
-            <TokenButton symbol={inputToken.symbol} color={inputToken.color} />
+            <TokenButton symbol={inputToken.symbol} color={inputToken.color} logoURI={(inputToken as any).logoURI} />
           </div>
         </div>
 
@@ -247,7 +262,7 @@ export default function SwapInterface() {
                 <span className={outputAmount ? "text-white" : "text-zinc-800"}>{outputAmount || "0.00"}</span>
               )}
             </div>
-            <TokenButton symbol={outputToken.symbol} color={outputToken.color} />
+            <TokenButton symbol={outputToken.symbol} color={outputToken.color} logoURI={(outputToken as any).logoURI} />
           </div>
         </div>
 
@@ -256,8 +271,8 @@ export default function SwapInterface() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 px-2 flex flex-col gap-1">
             <div className="flex justify-between text-xs">
               <span className="text-zinc-500">Price Impact</span>
-              <span className={`font-mono ${quote.price_impact > 1 ? "text-amber-400" : "text-zinc-400"}`}>
-                {quote.price_impact.toFixed(4)}%
+              <span className={`font-mono ${parseFloat(quote.quote?.priceImpactPct || "0") > 1 ? "text-amber-400" : "text-zinc-400"}`}>
+                {parseFloat(quote.quote?.priceImpactPct || "0").toFixed(4)}%
               </span>
             </div>
             <div className="flex justify-between text-xs">

@@ -10,12 +10,10 @@ pub async fn jwt_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    // JWT_SECRET is required — never fall back to an insecure default
     let secret = env::var("JWT_SECRET")
         .expect("FATAL: JWT_SECRET environment variable is not set.");
     let token = credentials.token();
 
-    // Verify token structure, expiration, and signature
     let validation = Validation::default();
     
     match decode::<Claim>(
@@ -24,13 +22,11 @@ pub async fn jwt_validator(
         &validation,
     ) {
         Ok(token_data) => {
-            // Store the user configuration payload internally so your handlers can easily access the user's ID
             req.extensions_mut().insert(token_data.claims.sub);
             
             Ok(req)
         }
         Err(_) => {
-            // Token is invalid, expired, or improperly signed
             Err((ErrorUnauthorized("Invalid or expired authorization token"), req))
         }
     }

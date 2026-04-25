@@ -10,6 +10,7 @@ use crate::services::solana::submit_transaction;
 use serde::Deserialize;
 use std::env;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use crate::services::mpc::{coordinate_transaction_signature, mpc_config};
 
 #[derive(Deserialize)]
 pub struct QuoteRequest {
@@ -50,10 +51,8 @@ pub async fn get_quote(
     let _user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-    // 1. calculate fee dynamically against TipLink's 50bps fee rate
     let (amount_after_fee, fee_amount) = calculate_fee(body.amount, 50);
 
-    // 2. Fetch specific route against Jupiter's API
     let quote = crate::services::jupiter::get_quote(
         &body.input_mint,
         &body.output_mint,
@@ -61,7 +60,6 @@ pub async fn get_quote(
         body.slippage_bps
     ).await?;
 
-    // 3. Return payload encapsulating fee abstraction for exact frontend visualization
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "quote": quote,
         "fee_breakdown": {
@@ -82,7 +80,6 @@ pub async fn execute_swap(
     let user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-    // 1. Check balance
     let input_amount_str = &body.quote.in_amount;
     let amount_u64: u64 = input_amount_str.parse().unwrap_or(0);
     let balance = Balance::get_token_balance(&mut conn, user_id, &body.quote.input_mint)?
@@ -92,12 +89,10 @@ pub async fn execute_swap(
         return Err(AppError::BadRequest("Insufficient tokens for swap".to_string()));
     }
 
-    // 2. Extract real user pubkey from DB for Jupiter swap transaction
     let user_pubkey = get_user_pubkey(&mut conn, user_id)?;
     let unsigned_tx = crate::services::jupiter::get_swap_transaction(body.quote.clone(), &user_pubkey).await?;
     let payload_b64 = BASE64.encode(&unsigned_tx);
 
-    // 3. Store intent in DB
     let nonce = Uuid::new_v4();
     let intent_payload = serde_json::to_string(&body.quote).unwrap_or_default();
     
@@ -112,7 +107,6 @@ pub async fn execute_swap(
     TransactionIntentEntry::create_intent(&mut conn, new_intent)
         .map_err(|_| AppError::InternalServerError("Failed to record swap intent securely".to_string()))?;
 
-    // 4. Return unsigned transaction
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "nonce": nonce,
         "unsigned_tx": payload_b64
@@ -128,7 +122,6 @@ pub async fn submit_swap(
     let user_uuid = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-    // 1. Retrieve and validate the intent
     use crate::db::schema::transaction_intents::dsl::*;
     use diesel::prelude::*;
     let intent = transaction_intents
@@ -136,16 +129,16 @@ pub async fn submit_swap(
         .first::<TransactionIntentEntry>(&mut conn)
         .map_err(|_| AppError::BadRequest("Swap nonce expired or entirely invalid".to_string()))?;
 
-    // 2. Deserialize the stored quote
     let quote: JupiterQuote = serde_json::from_str(&intent.intent_signature)
         .map_err(|_| AppError::InternalServerError("Failed to unpack routing maps".into()))?;
 
-    // 3. Submit to Solana
+    let mpc_cfg = mpc_config()?;
+    let signed_tx = coordinate_transaction_signature(&mpc_cfg, user_uuid, &BASE64.decode(&intent.unsigned_payload.unwrap_or_default()).unwrap_or_default()).await?;
+
     let rpc_url = solana_rpc_url();
     let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(rpc_url);
-    let sig = submit_transaction(&rpc_client, &String::from_utf8(body.signed_tx.clone()).unwrap_or_default()).await?;
+    let sig = submit_transaction(&rpc_client, &BASE64.encode(&signed_tx)).await?;
 
-    // 4. Record swap in history with real amounts
     let input_amount_i64: i64 = quote.in_amount.parse().unwrap_or(0);
     let (_amount_after_fee, fee_amount) = calculate_fee(input_amount_i64 as u64, 50);
 
@@ -163,10 +156,8 @@ pub async fn submit_swap(
     };
     let _swap_id = crate::db::swap::SwapEntry::create_entry(&mut conn, new_swap)?;
 
-    // 5. Subtract input balance immediately (credit handled by indexer on confirmation)
     let _ = Balance::subtract_balance(&mut conn, user_uuid, &quote.input_mint, input_amount_i64);
 
-    // 6. Clean up intent lock
     diesel::delete(transaction_intents.filter(id.eq(body.nonce))).execute(&mut conn)
         .map_err(|_| AppError::InternalServerError("Failed to wipe execution lock".to_string()))?;
 

@@ -20,13 +20,11 @@ pub async fn get_pubkey_package(
 ) -> Result<HttpResponse, MpcError> {
     let user_id = body.user_id;
 
-    // Load the encrypted pubkey_package from vault
     let (_key_pkg_bytes, pubkey_pkg_bytes) = vault::load_key_package(
         user_id,
         &state.aes_secret_key,
     )?;
 
-    // Deserialize to verify it's valid
     let pubkey_package: frost::keys::PublicKeyPackage = serde_json::from_slice(&pubkey_pkg_bytes)
         .map_err(|e| MpcError::Internal(format!("Failed to deserialize PublicKeyPackage: {}", e)))?;
 

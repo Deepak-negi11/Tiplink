@@ -121,7 +121,6 @@ pub async fn dkg_round2(
 
     let mut packages_json = serde_json::Map::new();
     for (identifier, package) in &round2_packages {
-        // Reverse lookup the string key (e.g. "1", "2", "3") from payload.others
         let mut id_key = String::new();
         for (k, _) in &payload.others {
             if let Ok(parsed) = parse_identifier(k) {
@@ -132,7 +131,6 @@ pub async fn dkg_round2(
             }
         }
         if id_key.is_empty() {
-            // Fallback just in case
             let serialized = serde_json::to_string(identifier).unwrap_or_default();
             id_key = serialized.trim_matches('"').to_string();
         }
