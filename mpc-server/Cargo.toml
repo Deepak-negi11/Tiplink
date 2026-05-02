@@ -28,3 +28,4 @@ dashmap = "6"
 
 # Error handling
 thiserror = "2"
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid"] }

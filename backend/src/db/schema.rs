@@ -1,3 +1,4 @@
+// @generated automatically by Diesel CLI.
 
 pub mod sql_types {
     #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
@@ -26,6 +27,17 @@ diesel::table! {
         available -> Int8,
         decimals -> Int2,
         updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    mpc_vaults (id) {
+        id -> Uuid,
+        user_id -> Uuid,
+        node_id -> Int4,
+        key_package -> Text,
+        pubkey_package -> Text,
+        created_at -> Timestamptz,
     }
 }
 
@@ -149,6 +161,7 @@ diesel::table! {
 }
 
 diesel::joinable!(balances -> users (user_id));
+diesel::joinable!(mpc_vaults -> users (user_id));
 diesel::joinable!(sessions -> users (user_id));
 diesel::joinable!(swap_history -> users (user_id));
 diesel::joinable!(transaction_intents -> users (user_id));
@@ -156,6 +169,7 @@ diesel::joinable!(transactions -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     balances,
+    mpc_vaults,
     payment_links,
     sessions,
     swap_history,

@@ -199,10 +199,12 @@ pub async fn dkg_finalize(
 
     vault::save_key_package(
         payload.user_id,
+        server_state.node_id as i32,
         &key_pkg_json,
         &pubkey_pkg_json,
         &server_state.aes_secret_key,
-    )?;
+        &server_state.db_pool,
+    ).await?;
 
     server_state.dkg_sessions.remove(&session_key);
 
@@ -214,33 +216,5 @@ pub async fn dkg_finalize(
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "public_key": public_key_bs58,
         "status": "key_package_stored"
-    })))
-}
-
-pub async fn store_share(
-    req: HttpRequest,
-    body_bytes: web::Bytes,
-    server_state: web::Data<MpcState>,
-) -> Result<HttpResponse, MpcError> {
-    if !middleware::is_authentic(&req, &body_bytes, &server_state.hmac_secret) {
-        return Err(MpcError::Unauthorised("HMAC authentication failed".to_string()));
-    }
-
-    let payload: StoreShareRequest = serde_json::from_slice(&body_bytes)
-        .map_err(|e| MpcError::BadRequest(format!("Invalid JSON: {}", e)))?;
-
-    if payload.share_index != server_state.node_id {
-        return Err(MpcError::BadRequest("Wrong node ID for this share".to_string()));
-    }
-
-    vault::save_encrypted(
-        payload.user_id,
-        "raw_share",
-        payload.secret_share.as_bytes(),
-        &server_state.aes_secret_key,
-    )?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "status": "Shard safely locked in the Vault."
     })))
 }

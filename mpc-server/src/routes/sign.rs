@@ -62,8 +62,10 @@ pub async fn sign_init(
 
     let (key_pkg_bytes, pubkey_pkg_bytes) = vault::load_key_package(
         payload.user_id,
+        server_state.node_id as i32,
         &server_state.aes_secret_key,
-    )?;
+        &server_state.db_pool,
+    ).await?;
 
     let key_package: frost::keys::KeyPackage = serde_json::from_slice(&key_pkg_bytes)
         .map_err(|e| MpcError::Internal(format!("Failed to deserialize key package: {}", e)))?;

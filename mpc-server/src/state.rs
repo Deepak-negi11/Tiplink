@@ -28,16 +28,18 @@ pub struct MpcState {
     pub node_id: u16,
     pub hmac_secret: String,
     pub aes_secret_key: String,
+    pub db_pool: sqlx::PgPool,
     pub dkg_sessions: Arc<DashMap<SessionKey, DkgSession>>,
     pub sign_sessions: Arc<DashMap<SessionKey, SignSession>>,
 }
 
 impl MpcState {
-    pub fn new(node_id: u16, hmac_secret: String, aes_secret_key: String) -> Self {
+    pub fn new(node_id: u16, hmac_secret: String, aes_secret_key: String, db_pool: sqlx::PgPool) -> Self {
         Self {
             node_id,
             hmac_secret,
             aes_secret_key,
+            db_pool,
             dkg_sessions: Arc::new(DashMap::new()),
             sign_sessions: Arc::new(DashMap::new()),
         }

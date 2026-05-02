@@ -1,6 +1,7 @@
 use actix_web::{get, App, HttpServer, web, HttpResponse, Responder};
 use dotenvy::dotenv;
 use std::env;
+use sqlx::postgres::PgPoolOptions;
 
 use crate::state::MpcState;
 
@@ -32,9 +33,16 @@ async fn main() -> std::io::Result<()> {
         .parse()
         .expect("PORT must be a number");
 
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db_pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("Failed to connect to Postgres");
+
     println!("Starting MPC Vault Server (Node {}) on port {}...", node_id, port);
 
-    let app_state = MpcState::new(node_id, hmac_key, aes_key);
+    let app_state = MpcState::new(node_id, hmac_key, aes_key, db_pool);
 
     let cleanup_state = app_state.clone();
     tokio::spawn(async move {

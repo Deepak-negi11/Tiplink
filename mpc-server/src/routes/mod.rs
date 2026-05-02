@@ -10,7 +10,6 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
             .route("/round1", web::post().to(dkg::dkg_round1))
             .route("/round2", web::post().to(dkg::dkg_round2))
             .route("/finalize", web::post().to(dkg::dkg_finalize))
-            .route("/store", web::post().to(dkg::store_share))
     );
     cfg.service(
         web::scope("/sign")
