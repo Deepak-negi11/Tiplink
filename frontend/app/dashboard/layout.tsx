@@ -38,18 +38,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen bg-[#0a0a0a] text-[#e8e3d5] flex flex-col md:flex-row relative overflow-hidden">
 
       {/* ── Ambient orbs ── */}
-      <div className="orb orb-yellow fixed top-[-20%] left-[-10%] w-[45%] h-[45%] pointer-events-none z-0" />
-      <div className="orb orb-yellow-dim fixed bottom-[-15%] right-[-10%] w-[35%] h-[35%] pointer-events-none z-0" />
+      <div className="orb orb-brand fixed top-[-20%] left-[-10%] w-[45%] h-[45%] pointer-events-none z-0" />
+      <div className="orb orb-brand-dim fixed bottom-[-15%] right-[-10%] w-[35%] h-[35%] pointer-events-none z-0" />
 
       {/* ══ Sidebar ══ */}
-      <nav className="w-full md:w-[260px] md:min-h-screen border-b md:border-b-0 md:border-r border-[rgba(245,197,24,0.07)] bg-[#0d0d0d]/95 backdrop-blur-xl flex flex-col z-20 md:fixed md:left-0 md:top-0 shrink-0">
+      <nav className="w-full md:w-[260px] md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--primary)]/10 bg-[#0d0d0d]/95 backdrop-blur-xl flex flex-col z-20 md:fixed md:left-0 md:top-0 shrink-0">
 
         {/* Logo */}
-        <div className="px-6 py-6 flex items-center gap-3 border-b border-[rgba(245,197,24,0.07)]">
-          <div className="w-9 h-9 rounded-lg bg-[#f5c518] flex items-center justify-center font-bold text-lg text-[#0a0a00] shadow-lg shadow-yellow-500/25 font-display">
-            T
+        <div className="px-6 py-6 flex items-center gap-3 border-b border-[var(--primary)]/10">
+          <div className="w-10 h-9 rounded-lg bg-[var(--primary)] flex items-center justify-center font-bold text-lg text-white shadow-lg shadow-[var(--primary)]/20 font-display">
+            Or
           </div>
-          <span className="font-display font-bold text-xl tracking-tight text-white">TipLink</span>
+          <span className="font-display font-bold text-xl tracking-tight text-white">Orbit</span>
         </div>
 
         {/* Nav items */}
@@ -62,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 relative ${
                     isActive
-                      ? "bg-[#f5c518]/[0.1] text-[#f5c518]"
+                      ? "bg-[var(--primary)]/[0.15] text-[var(--primary-light)]"
                       : "text-[#555550] hover:text-[#e8e3d5] hover:bg-white/[0.04]"
                   }`}
                 >
@@ -87,10 +87,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* User + Logout */}
-        <div className="p-4 hidden md:flex flex-col gap-2 border-t border-[rgba(245,197,24,0.07)]">
+        <div className="p-4 hidden md:flex flex-col gap-2 border-t border-[var(--primary)]/10">
           {user && (
             <div className="flex items-center gap-3 px-3 py-2">
-              <div className="w-8 h-8 rounded-full bg-[#f5c518]/10 border border-[#f5c518]/20 flex items-center justify-center text-xs font-bold text-[#f5c518] font-display shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center text-xs font-bold text-[var(--primary-light)] font-display shrink-0">
                 {shortEmail.charAt(0).toUpperCase()}
               </div>
               <div className="flex flex-col min-w-0">

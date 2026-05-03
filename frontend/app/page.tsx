@@ -51,34 +51,37 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e8e3d5] flex flex-col relative overflow-hidden">
 
-      {/* ── Ambient yellow orbs ── */}
-      <div className="orb orb-yellow absolute top-[-25%] left-[-15%] w-[55%] h-[55%] animate-float" />
-      <div className="orb orb-yellow-dim absolute bottom-[-20%] right-[-10%] w-[40%] h-[40%]" />
+      {/* ── Ambient brand orbs ── */}
+      <div className="orb orb-brand absolute top-[-25%] left-[-15%] w-[55%] h-[55%] animate-float" />
+      <div className="orb orb-brand-dim absolute bottom-[-20%] right-[-10%] w-[40%] h-[40%]" />
 
       {/* ── Subtle grid overlay ── */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.025]"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(245,197,24,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(245,197,24,0.6) 1px, transparent 1px)",
+            "linear-gradient(oklch(28.3% 0.141 291.089 / 0.6) 1px, transparent 1px), linear-gradient(90deg, oklch(28.3% 0.141 291.089 / 0.6) 1px, transparent 1px)",
           backgroundSize: "60px 60px",
         }}
       />
 
       {/* ── Navbar ── */}
-      <header className="w-full flex items-center justify-between px-6 py-5 lg:px-12 z-10 border-b border-[rgba(245,197,24,0.06)]">
+      <header className="w-full flex items-center justify-between px-6 py-5 lg:px-12 z-10 border-b border-[var(--primary)]/10">
         {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[#f5c518] flex items-center justify-center font-bold text-lg text-[#0a0a00] shadow-lg shadow-yellow-500/30 font-display">
-            T
+        <div className="flex items-center gap-2 group cursor-pointer">
+          <div className="relative w-8 h-8 flex items-center justify-center">
+            <div className="absolute inset-0 bg-gradient-to-tr from-[var(--primary)] to-[var(--primary-light)] rounded-full animate-pulse-slow blur-[4px] opacity-70" />
+            <div className="relative w-6 h-6 rounded-full border-2 border-white/90 flex items-center justify-center">
+              <div className="w-2 h-2 bg-white rounded-full animate-orbit" />
+            </div>
           </div>
-          <span className="font-display font-bold text-xl tracking-tight text-white">
-            TipLink
+          <span className="font-display font-bold text-2xl tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/70 group-hover:to-[var(--primary-light)] transition-all duration-300">
+            Orbit
           </span>
         </div>
         {/* Network status */}
         <div className="flex items-center gap-2.5 text-[#888880] text-sm">
-          <div className="w-2 h-2 rounded-full bg-[#f5c518] animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-[var(--primary-light)] animate-pulse" />
           <span>Solana Devnet</span>
         </div>
       </header>
@@ -98,7 +101,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.15, duration: 0.45 }}
-            className="inline-flex items-center gap-2 rounded-full border border-[#f5c518]/20 bg-[#f5c518]/[0.07] px-4 py-1.5 text-xs font-semibold text-[#f5c518] mb-8 font-display tracking-wide uppercase"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--primary)]/20 bg-[var(--primary)]/[0.07] px-4 py-1.5 text-xs font-semibold text-[var(--primary-light)] mb-8 font-display tracking-wide uppercase"
           >
             <Sparkles className="h-3 w-3" />
             MPC Secured · Built on Solana
@@ -108,19 +111,19 @@ export default function LandingPage() {
           <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.04em] mb-6 leading-[1.04]">
             <span className="text-white">Send crypto</span>
             <br />
-            <span className="text-yellow-gradient">with just a link.</span>
+            <span className="text-brand-gradient">with just a link.</span>
           </h1>
 
           <p className="text-[#888880] text-lg lg:text-xl mb-10 max-w-md leading-relaxed">
-            No wallets required. Generate a secure TipLink and send SOL or USDC
-            to anyone — over any messenger, instantly.
+            No wallets required. Generate a secure Orbit link and send SOL or USDC
+            to anyone over any messenger, instantly.
           </p>
 
           {/* Trust badges */}
           <div className="flex flex-col sm:flex-row gap-5">
             <div className="flex items-center gap-3 text-[#888880] text-sm">
-              <div className="w-9 h-9 rounded-xl border border-[#f5c518]/20 bg-[#f5c518]/[0.06] flex items-center justify-center shrink-0">
-                <Shield className="w-4 h-4 text-[#f5c518]" />
+              <div className="w-9 h-9 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/[0.06] flex items-center justify-center shrink-0">
+                <Shield className="w-4 h-4 text-[var(--primary-light)]" />
               </div>
               <div className="text-left">
                 <p className="text-[#e8e3d5] font-semibold text-sm font-display">Non-Custodial</p>
@@ -128,8 +131,8 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 text-[#888880] text-sm">
-              <div className="w-9 h-9 rounded-xl border border-[#f5c518]/20 bg-[#f5c518]/[0.06] flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4 text-[#f5c518]" />
+              <div className="w-9 h-9 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/[0.06] flex items-center justify-center shrink-0">
+                <Zap className="w-4 h-4 text-[var(--primary-light)]" />
               </div>
               <div className="text-left">
                 <p className="text-[#e8e3d5] font-semibold text-sm font-display">Instant Settlement</p>
@@ -137,8 +140,8 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 text-[#888880] text-sm">
-              <div className="w-9 h-9 rounded-xl border border-[#f5c518]/20 bg-[#f5c518]/[0.06] flex items-center justify-center shrink-0">
-                <Link2 className="w-4 h-4 text-[#f5c518]" />
+              <div className="w-9 h-9 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/[0.06] flex items-center justify-center shrink-0">
+                <Link2 className="w-4 h-4 text-[var(--primary-light)]" />
               </div>
               <div className="text-left">
                 <p className="text-[#e8e3d5] font-semibold text-sm font-display">Share Anywhere</p>
@@ -155,11 +158,11 @@ export default function LandingPage() {
           transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-[400px]"
         >
-          <div className="relative rounded-2xl border border-[rgba(245,197,24,0.12)] bg-[#111111] shadow-2xl shadow-black/60 overflow-hidden">
-            {/* Yellow top accent line */}
-            <div className="absolute top-0 left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-[#f5c518]/70 to-transparent" />
-            {/* Subtle yellow corner glow */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#f5c518]/[0.04] rounded-full blur-2xl pointer-events-none" />
+          <div className="relative rounded-2xl border border-[var(--primary)]/10 bg-[#111111] shadow-2xl shadow-black/60 overflow-hidden">
+            {/* Brand top accent line */}
+            <div className="absolute top-0 left-[10%] right-[10%] h-[1px] bg-gradient-to-r from-transparent via-[var(--primary)]/70 to-transparent" />
+            {/* Subtle brand corner glow */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--primary)]/[0.04] rounded-full blur-2xl pointer-events-none" />
 
             <div className="p-8 relative">
               <h2 className="font-display text-2xl font-bold mb-1 text-white tracking-tight">
@@ -210,7 +213,7 @@ export default function LandingPage() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="w-full mt-3 animate-pulse-yellow"
+                  className="w-full mt-3 animate-pulse-brand"
                   disabled={loading}
                 >
                   {loading ? (
@@ -228,7 +231,7 @@ export default function LandingPage() {
                 {isLogin ? "Don\u2019t have an account? " : "Already have an account? "}
                 <button
                   onClick={() => { setIsLogin(!isLogin); setError(""); }}
-                  className="text-[#f5c518] hover:text-[#ffd740] font-semibold transition-colors"
+                  className="text-[var(--primary-light)] hover:text-white font-semibold transition-colors"
                 >
                   {isLogin ? "Sign up" : "Log in"}
                 </button>

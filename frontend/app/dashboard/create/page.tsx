@@ -226,7 +226,7 @@ export default function SendPage() {
           <>
             <h1 className="text-3xl font-bold mb-2 text-center text-glow-green">Link Created!</h1>
             <p className="text-zinc-400 text-center mb-2 text-sm">
-              Recipient doesn&apos;t have a TipLink account yet.
+              Recipient doesn&apos;t have an Orbit account yet.
             </p>
             <p className="text-zinc-500 text-center mb-8 text-xs">
               Funds are locked. Share this link — anyone with it can claim {amount} {asset}.
@@ -324,12 +324,12 @@ export default function SendPage() {
                   {lookupResult.found ? (
                     <>
                       <Check className="w-3 h-3" />
-                      TipLink user found — will send directly
+                      Orbit user found — will send directly
                     </>
                   ) : (
                     <>
                       <LinkIcon className="w-3 h-3" />
-                      Not on TipLink — will create a claimable link
+                      Not on Orbit — will create a claimable link
                     </>
                   )}
                 </motion.div>
@@ -394,7 +394,7 @@ export default function SendPage() {
           <div className="flex items-center justify-between text-sm">
             <span className="text-zinc-500">Method</span>
             <span className="text-zinc-300 font-mono text-xs">
-              {lookupResult?.found ? "⚡ Direct Transfer" : "🔗 TipLink"}
+              {lookupResult?.found ? "⚡ Direct Transfer" : "🔗 Orbit Link"}
             </span>
           </div>
 

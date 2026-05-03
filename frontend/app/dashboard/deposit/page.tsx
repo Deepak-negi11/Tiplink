@@ -91,7 +91,7 @@ export default function DepositPage() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-[-0.03em] mb-1">Deposit Funds</h1>
-            <p className="text-zinc-500 text-sm">Add SOL or USDC to your TipLink wallet.</p>
+            <p className="text-zinc-500 text-sm">Add SOL or USDC to your Orbit wallet.</p>
           </div>
         </div>
 
@@ -100,7 +100,7 @@ export default function DepositPage() {
           <button
             onClick={() => setTab("buy")}
             className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${tab === "buy"
-              ? "bg-[#f5c518] text-black shadow-[0_0_15px_rgba(245,197,24,0.3)]"
+              ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
               : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
               }`}
           >
@@ -109,7 +109,7 @@ export default function DepositPage() {
           <button
             onClick={() => setTab("transfer")}
             className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${tab === "transfer"
-              ? "bg-[#f5c518] text-black shadow-[0_0_15px_rgba(245,197,24,0.3)]"
+              ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
               : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
               }`}
           >
@@ -125,7 +125,7 @@ export default function DepositPage() {
             transition={{ duration: 0.4 }}
           >
             <Card className="overflow-hidden relative bg-[#0a0a0a]/80 border-white/[0.08] backdrop-blur-3xl p-6">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#f5c518] to-transparent opacity-50" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent opacity-50" />
 
               {/* Token Selector */}
               <div className="mb-5">
@@ -134,7 +134,7 @@ export default function DepositPage() {
                   <button
                     onClick={() => setCurrency("sol")}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${currency === "sol"
-                      ? "bg-[#f5c518] text-black shadow-[0_0_15px_rgba(245,197,24,0.3)]"
+                      ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
                       : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
                       }`}
                   >
@@ -159,7 +159,7 @@ export default function DepositPage() {
                       key={val}
                       onClick={() => setAmount(val)}
                       className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${amount === val
-                        ? "bg-[#f5c518] text-black shadow-[0_0_15px_rgba(245,197,24,0.3)]"
+                        ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
                         : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
                         }`}
                     >
@@ -214,7 +214,7 @@ export default function DepositPage() {
               <Button
                 onClick={handleBuy}
                 disabled={loading || !quote}
-                className="w-full py-6 rounded-2xl bg-[#f5c518] hover:bg-[#d4a813] text-black font-semibold text-base flex items-center justify-center gap-3 transition-colors shadow-[0_0_20px_rgba(245,197,24,0.3)] hover:shadow-[0_0_30px_rgba(245,197,24,0.4)] disabled:opacity-50"
+                className="w-full py-6 rounded-2xl bg-[var(--primary)] hover:bg-[var(--primary-dim)] text-white font-semibold text-base flex items-center justify-center gap-3 transition-colors shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(79,70,229,0.4)] disabled:opacity-50"
               >
                 {loading ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> Opening MoonPay...</>
@@ -249,10 +249,10 @@ export default function DepositPage() {
             transition={{ duration: 0.4 }}
           >
             <Card className="overflow-hidden relative bg-[#0a0a0a]/80 border-white/[0.08] backdrop-blur-3xl p-8 flex flex-col items-center text-center">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#f5c518] to-transparent opacity-50" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent opacity-50" />
 
-              <div className="w-16 h-16 rounded-2xl bg-[#f5c518]/10 flex items-center justify-center mb-6 border border-[#f5c518]/20 shadow-[0_0_30px_rgba(245,197,24,0.15)]">
-                <Wallet className="w-8 h-8 text-[#f5c518]" />
+              <div className="w-16 h-16 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center mb-6 border border-[var(--primary)]/20 shadow-[0_0_30px_rgba(79,70,229,0.15)]">
+                <Wallet className="w-8 h-8 text-[var(--primary-light)]" />
               </div>
 
               <h2 className="text-xl font-bold text-white mb-2">Your Solana Address</h2>
@@ -261,7 +261,7 @@ export default function DepositPage() {
               </p>
 
               <div className="bg-white p-4 rounded-3xl shadow-xl mb-8 relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-br from-[#f5c518] to-amber-600 rounded-[1.4rem] blur opacity-0 group-hover:opacity-40 transition duration-500"></div>
+                <div className="absolute -inset-0.5 bg-gradient-to-br from-[var(--primary)] to-[var(--primary-light)] rounded-[1.4rem] blur opacity-0 group-hover:opacity-40 transition duration-500"></div>
                 <div className="relative bg-white rounded-2xl p-2">
                   <QRCodeSVG
                     value={user.public_key}
@@ -280,7 +280,7 @@ export default function DepositPage() {
                   <span className="font-mono text-sm text-zinc-300 truncate select-all">{user.public_key}</span>
                   <button
                     onClick={handleCopy}
-                    className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-[#f5c518]/20 hover:text-[#f5c518] text-zinc-400 transition-all border border-transparent hover:border-[#f5c518]/30"
+                    className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-[var(--primary)]/20 hover:text-[var(--primary-light)] text-zinc-400 transition-all border border-transparent hover:border-[var(--primary)]/30"
                   >
                     {copied ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
                   </button>

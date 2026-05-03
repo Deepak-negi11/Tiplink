@@ -19,7 +19,7 @@ interface LinkDetails {
   decimals: number;
 }
 
-export default function ClaimTipLink() {
+export default function ClaimOrbit() {
   const params = useParams();
   const router = useRouter();
   const { token } = useAuthStore();
@@ -101,7 +101,7 @@ export default function ClaimTipLink() {
   return (
     <div className="min-h-screen bg-[#050507] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
       {/* Background */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[60%] bg-indigo-600/[0.06] blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[60%] bg-[var(--primary)]/[0.06] blur-[150px] rounded-full pointer-events-none" />
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -111,11 +111,11 @@ export default function ClaimTipLink() {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center font-bold text-2xl shadow-xl shadow-indigo-500/30 mb-6">
-            T
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[var(--primary)] to-[var(--primary-light)] flex items-center justify-center font-bold text-2xl shadow-xl shadow-[var(--primary)]/30 mb-6 text-white">
+            Or
           </div>
           <h1 className="text-2xl font-semibold text-center">You received crypto!</h1>
-          <p className="text-zinc-500 text-center mt-2 text-sm">Someone sent you a TipLink.</p>
+          <p className="text-zinc-500 text-center mt-2 text-sm">Someone sent you an Orbit link.</p>
         </div>
 
         {error && (
@@ -130,7 +130,7 @@ export default function ClaimTipLink() {
 
         <Card className="p-8 backdrop-blur-3xl relative overflow-visible group">
           {/* Glow border */}
-          <div className="absolute -inset-[1px] bg-gradient-to-r from-indigo-500 to-violet-500 rounded-2xl opacity-[0.12] group-hover:opacity-[0.25] transition-opacity blur-sm pointer-events-none" />
+          <div className="absolute -inset-[1px] bg-gradient-to-r from-[var(--primary)] to-[var(--primary-light)] rounded-2xl opacity-[0.12] group-hover:opacity-[0.25] transition-opacity blur-sm pointer-events-none" />
 
           <div className="relative flex flex-col items-center z-10">
             {loading ? (

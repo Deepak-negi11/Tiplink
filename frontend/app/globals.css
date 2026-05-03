@@ -21,10 +21,11 @@
   /* Core Palette */
   --background:        #0a0a0a;
   --foreground:        #e8e3d5;
-  --primary:           #f5c518;
-  --primary-foreground:#0a0a00;
-  --primary-dim:       #c9a010;
-  --primary-glow:      rgba(245, 197, 24, 0.15);
+  --primary:           oklch(28.3% 0.141 291.089);
+  --primary-light:     oklch(70% 0.12 291.089);
+  --primary-foreground:#ffffff;
+  --primary-dim:       oklch(25% 0.12 291.089);
+  --primary-glow:      rgba(79, 70, 229, 0.15);
 
   /* Surfaces */
   --surface:           #131313;
@@ -39,7 +40,7 @@
   /* Semantic */
   --success:           #00d26a;
   --danger:            #ff3b30;
-  --outline:           rgba(245, 197, 24, 0.12);
+  --outline:           rgba(79, 70, 229, 0.12);
 }
 
 /* ── Scrollbar ── */
@@ -69,16 +70,16 @@ body {
   -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
-/* ── Yellow glow text ── */
-.text-glow-yellow {
+/* ── Brand glow text ── */
+.text-glow-brand {
   text-shadow:
-    0 0 30px rgba(245, 197, 24, 0.5),
-    0 0 80px rgba(245, 197, 24, 0.2);
+    0 0 30px oklch(28.3% 0.141 291.089 / 0.5),
+    0 0 80px oklch(28.3% 0.141 291.089 / 0.2);
 }
 
-/* ── Yellow gradient text ── */
-.text-yellow-gradient {
-  background: linear-gradient(135deg, #f5c518 0%, #ffe066 50%, #f5c518 100%);
+/* ── Brand gradient text ── */
+.text-brand-gradient {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 50%, var(--primary) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -91,11 +92,11 @@ body {
   pointer-events: none;
   filter: blur(120px);
 }
-.orb-yellow {
-  background: radial-gradient(circle, rgba(245,197,24,0.07) 0%, transparent 70%);
+.orb-brand {
+  background: radial-gradient(circle, oklch(28.3% 0.141 291.089 / 0.07) 0%, transparent 70%);
 }
-.orb-yellow-dim {
-  background: radial-gradient(circle, rgba(245,197,24,0.04) 0%, transparent 70%);
+.orb-brand-dim {
+  background: radial-gradient(circle, oklch(28.3% 0.141 291.089 / 0.04) 0%, transparent 70%);
 }
 
 /* ── Shimmer skeleton ── */
@@ -125,13 +126,13 @@ body {
   animation: pulse-green 2s ease-in-out infinite;
 }
 
-/* ── Yellow pulse (CTA) ── */
-@keyframes pulse-yellow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 197, 24, 0.3); }
-  50%       { box-shadow: 0 0 0 8px rgba(245, 197, 24, 0); }
+/* ── Brand pulse (CTA) ── */
+@keyframes pulse-brand {
+  0%, 100% { box-shadow: 0 0 0 0 var(--primary); }
+  50%       { box-shadow: 0 0 0 8px transparent; }
 }
-.animate-pulse-yellow {
-  animation: pulse-yellow 2.5s ease-in-out infinite;
+.animate-pulse-brand {
+  animation: pulse-brand 2.5s ease-in-out infinite;
 }
 
 /* ── Float ── */
@@ -155,7 +156,7 @@ body {
 .animate-fade-up-delay-2 { animation-delay: 0.2s; }
 .animate-fade-up-delay-3 { animation-delay: 0.35s; }
 
-/* ── Yellow accent left border (nav active) ── */
+/* ── Brand accent left border (nav active) ── */
 .nav-active-bar {
   position: absolute;
   left: 0;
@@ -165,7 +166,7 @@ body {
   height: 20px;
   border-radius: 0 2px 2px 0;
   background: var(--primary);
-  box-shadow: 0 0 12px rgba(245, 197, 24, 0.5);
+  box-shadow: 0 0 12px oklch(28.3% 0.141 291.089 / 0.5);
 }
 
 /* ── Yellow top accent line on cards ── */
@@ -181,8 +182,8 @@ body {
 }
 
 /* ── Input focus ring ── */
-.input-yellow:focus {
+.input-brand:focus {
   outline: none;
-  border-color: rgba(245, 197, 24, 0.45);
-  box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.08);
+  border-color: oklch(28.3% 0.141 291.089 / 0.45);
+  box-shadow: 0 0 0 3px oklch(28.3% 0.141 291.089 / 0.08);
 }

@@ -39,7 +39,7 @@ export const useAuthStore = create<AuthState>()(
       setBalances: (balances) => set({ balances, balancesLoaded: true }),
     }),
     {
-      name: "tiplink-auth",
+      name: "orbit-auth",
     }
   )
 );

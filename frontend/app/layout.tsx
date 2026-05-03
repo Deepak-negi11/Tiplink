@@ -15,9 +15,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "TipLink — Send Crypto With Just a Link",
+  title: "Orbit — Send Crypto With Just a Link",
   description:
-    "No wallets. No seed phrases. Send USDC or SOL to anyone instantly with a secure, non-custodial TipLink on Solana.",
+    "No wallets. No seed phrases. Send USDC or SOL to anyone instantly with a secure, non-custodial Orbit on Solana.",
 };
 
 export default function RootLayout({
