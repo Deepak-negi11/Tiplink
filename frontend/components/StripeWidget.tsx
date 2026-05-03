@@ -52,15 +52,7 @@ export function StripeWidget({ walletAddress, onClose }: StripeWidgetProps) {
           clientSecret,
           appearance: {
             theme: "dark",
-            variables: {
-              colorPrimary: "#f5c518",
-              colorBackground: "#0d0d0d",
-              colorText: "#ffffff",
-              colorDanger: "#ff3b30",
-              fontFamily: "Inter, sans-serif",
-              borderRadius: "12px",
-            },
-          },
+          } as any,
         });
 
         if (containerRef.current) {
