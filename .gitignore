@@ -2,3 +2,4 @@
 .env
 *.env
 mpc-server/vaults/
+mpc-server/.env*

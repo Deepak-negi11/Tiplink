@@ -1,5 +1,4 @@
 use actix_web::{get, App, HttpServer, web, HttpResponse, Responder};
-use dotenvy::dotenv;
 use std::env;
 use sqlx::postgres::PgPoolOptions;
 
@@ -21,7 +20,9 @@ async fn ping() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    dotenv().ok();
+    // Load node-specific env file: ENV_FILE=.env.node1 cargo run
+    let env_file = std::env::var("ENV_FILE").unwrap_or_else(|_| ".env".to_string());
+    dotenvy::from_filename(&env_file).ok();
 
     let node_id_str = env::var("NODE_ID").expect("NODE_ID must be set");
     let hmac_key = env::var("INTERNAL_MPC_KEY").expect("INTERNAL_MPC_KEY must be set");

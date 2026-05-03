@@ -63,13 +63,26 @@ pub fn build_widget_url(
     format!("{}?{}", base_url, query)
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
+pub struct MoonPayLimitCurrency {
+    #[serde(rename = "minBuyAmount", default)]
+    pub min_buy_amount: f64,
+    #[serde(rename = "maxBuyAmount", default)]
+    pub max_buy_amount: f64,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct MoonPayLimitRaw {
+    #[serde(rename = "baseCurrency")]
+    pub base_currency: MoonPayLimitCurrency,
+}
+
+/// The shape we send to the frontend.
+#[derive(Serialize, Debug, Clone)]
 pub struct MoonPayLimit {
-    #[serde(rename = "baseCurrencyCode", default)]
-    pub base_currency_code: String,
-    #[serde(rename = "baseCurrencyMinBuyAmount", default)]
+    #[serde(rename = "baseCurrencyMinBuyAmount")]
     pub base_min_amount: f64,
-    #[serde(rename = "baseCurrencyMaxBuyAmount", default)]
+    #[serde(rename = "baseCurrencyMaxBuyAmount")]
     pub base_max_amount: f64,
 }
 
@@ -95,9 +108,14 @@ pub async fn get_currency_limit(
         return Err(AppError::ExternalApi(format!("MoonPay limit error: {}", err_text)));
     }
 
-    resp.json::<MoonPayLimit>()
+    let raw = resp.json::<MoonPayLimitRaw>()
         .await
-        .map_err(|e| AppError::ExternalApi(format!("MoonPay limit parse error: {}", e)))
+        .map_err(|e| AppError::ExternalApi(format!("MoonPay limit parse error: {}", e)))?;
+
+    Ok(MoonPayLimit {
+        base_min_amount: raw.base_currency.min_buy_amount,
+        base_max_amount: raw.base_currency.max_buy_amount,
+    })
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
