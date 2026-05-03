@@ -57,7 +57,7 @@ export default function SwapInterface() {
   const [slippage, setSlippage] = useState(50);
   const [showSettings, setShowSettings] = useState(false);
   const [localBalances, setLocalBalances] = useState<BalanceEntry[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
     async function loadBalances() {
