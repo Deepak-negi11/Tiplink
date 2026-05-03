@@ -232,7 +232,6 @@ export default function DepositPage() {
               baseCurrencyAmount={amount}
               defaultCurrencyCode={currency}
               walletAddress={user.public_key}
-              network="solana"
             />
 
             <p className="text-xs text-zinc-600 mt-3 text-center">
