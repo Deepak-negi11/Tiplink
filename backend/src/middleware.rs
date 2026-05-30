@@ -5,7 +5,6 @@ use std::env;
 
 use crate::services::auth::Claim;
 
-/// Validates a JWT Bearer token and injects the user ID (Uuid) into the request extensions.
 pub async fn jwt_validator(
     req: ServiceRequest,
     credentials: BearerAuth,

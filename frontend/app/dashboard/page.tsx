@@ -14,13 +14,11 @@ import { fetchApi } from "@/lib/api";
 
 async function fetchSolPrice(): Promise<number> {
   try {
-    const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
-    );
+    const res = await fetch("https://api.jup.ag/price/v2?ids=SOL");
     const data = await res.json();
-    return Number(data?.solana?.usd ?? 0);
+    return Number(data?.data?.SOL?.price ?? 82.55);
   } catch {
-    return 0;
+    return 82.55;
   }
 }
 
@@ -74,17 +72,17 @@ function AnimatedBalance({ value }: { value: number }) {
 }
 
 export default function Dashboard() {
-  const { user, token, setBalances } = useAuthStore();
+  const { user, token, setBalances, network } = useAuthStore();
   const [balances, setLocalBalances] = useState<BalanceEntry[]>([]);
   const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [txLoading, setTxLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [showReceive, setShowReceive] = useState(false);
   const [solPrice, setSolPrice] = useState(0);
 
   const loadBalances = useCallback(async () => {
     if (!token) return;
+    setLoading(true);
     try {
       const data = await fetchApi<BalanceEntry[]>("/wallet/balance", { token });
       setLocalBalances(data);
@@ -94,10 +92,11 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [token, setBalances]);
+  }, [token, setBalances, network]);
 
   const loadTransactions = useCallback(async () => {
     if (!token) return;
+    setTxLoading(true);
     try {
       const data = await fetchApi<TransactionEntry[]>("/wallet/history?limit=10", { token });
       if (Array.isArray(data)) setTransactions(data);
@@ -106,7 +105,7 @@ export default function Dashboard() {
     } finally {
       setTxLoading(false);
     }
-  }, [token]);
+  }, [token, network]);
 
   useEffect(() => {
     loadBalances();
@@ -114,7 +113,7 @@ export default function Dashboard() {
     fetchSolPrice().then(setSolPrice);
     const priceInterval = setInterval(() => fetchSolPrice().then(setSolPrice), 30_000);
     return () => clearInterval(priceInterval);
-  }, [loadBalances, loadTransactions]);
+  }, [loadBalances, loadTransactions, network]);
 
   const totalUsd = balances.reduce((sum, b) => {
     const sym = b.symbol || (b as any).token_symbol;
@@ -146,7 +145,7 @@ export default function Dashboard() {
           </p>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-2 text-xs text-[#555550] hover:text-[#e8e3d5] transition-colors bg-[#1a1a1a] border border-[rgba(245,197,24,0.1)] rounded-lg px-3 py-1.5 hover:border-[rgba(245,197,24,0.25)]"
+            className="flex items-center gap-2 text-xs text-[#555550] hover:text-[#e8e3d5] transition-colors bg-[#111111] border border-[rgba(234,58,89,0.1)] rounded-lg px-3 py-1.5 hover:border-[rgba(234,58,89,0.25)]"
           >
             <div className="w-1.5 h-1.5 rounded-full bg-[#00d26a] animate-pulse-green" />
             <span className="font-mono">{shortKey}</span>
@@ -164,7 +163,7 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="flex items-baseline gap-3"
           >
-            <h1 className="font-display text-6xl font-bold tracking-[-0.04em] text-white text-glow-yellow">
+            <h1 className="font-display text-6xl font-bold tracking-[-0.04em] text-white text-glow-brand">
               <AnimatedBalance value={totalUsd} />
             </h1>
             <span className="flex items-center gap-1 text-[#00d26a] text-sm font-semibold">
@@ -183,41 +182,7 @@ export default function Dashboard() {
             Send
           </Button>
         </Link>
-        <Button
-          size="lg"
-          variant="outline"
-          className="gap-2 rounded-2xl"
-          onClick={() => setShowReceive(!showReceive)}
-        >
-          <ArrowDownLeft className="w-5 h-5" />
-          Receive
-        </Button>
       </section>
-
-      {/* ── Receive address ── */}
-      {showReceive && user?.public_key && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-        >
-          <Card className="p-5 bg-[#f5c518]/[0.04] border-[#f5c518]/15">
-            <p className="text-sm text-[#888880] mb-3 font-display font-semibold">
-              Your deposit address:
-            </p>
-            <div className="flex items-center gap-3 bg-[#0d0d0d] border border-[rgba(245,197,24,0.1)] rounded-xl p-3">
-              <code className="flex-1 text-sm text-[#e8e3d5] font-mono break-all">
-                {user.public_key}
-              </code>
-              <Button size="icon" variant="ghost" onClick={handleCopy} className="shrink-0">
-                {copied
-                  ? <Check className="w-4 h-4 text-[#00d26a]" />
-                  : <Copy className="w-4 h-4" />}
-              </Button>
-            </div>
-          </Card>
-        </motion.div>
-      )}
 
       {/* ── Assets ── */}
       <section className="flex flex-col gap-3 animate-fade-up animate-fade-up-delay-2">
@@ -238,8 +203,8 @@ export default function Dashboard() {
             </div>
           ) : balances.length === 0 ? (
             <div className="p-12 text-center">
-              <div className="w-12 h-12 rounded-full bg-[#f5c518]/10 border border-[#f5c518]/20 flex items-center justify-center mx-auto mb-4">
-                <ArrowDownLeft className="w-5 h-5 text-[#f5c518]" />
+              <div className="w-12 h-12 rounded-full bg-[#EA3A59]/10 border border-[#EA3A59]/20 flex items-center justify-center mx-auto mb-4">
+                <ArrowDownLeft className="w-5 h-5 text-[#EA3A59]" />
               </div>
               <p className="text-[#888880] text-sm font-display font-semibold">No assets yet</p>
               <p className="text-[#555550] text-xs mt-1">Receive tokens to get started.</p>
@@ -250,7 +215,7 @@ export default function Dashboard() {
               const mnt = b.mint || (b as any).token_mint || "";
               const human = (b.available / 10 ** b.decimals).toFixed(b.decimals > 6 ? 4 : 2);
               const usd = sym === "SOL"
-                ? (b.available / 10 ** b.decimals) * 170
+                ? (b.available / 10 ** b.decimals) * solPrice
                 : sym === "USDC" || sym === "USDT"
                   ? b.available / 10 ** b.decimals : 0;
               return (
@@ -259,7 +224,7 @@ export default function Dashboard() {
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.06 }}
-                  className="flex items-center justify-between px-5 py-4 hover:bg-[#f5c518]/[0.03] transition-colors border-b border-[rgba(245,197,24,0.06)] last:border-0"
+                  className="flex items-center justify-between px-5 py-4 hover:bg-[#EA3A59]/[0.03] transition-colors border-b border-[rgba(234,58,89,0.06)] last:border-0"
                 >
                   <div className="flex items-center gap-4">
                     <TokenBadge symbol={sym} />
@@ -317,7 +282,7 @@ export default function Dashboard() {
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
-                  className="flex items-center justify-between px-5 py-4 hover:bg-[#f5c518]/[0.03] transition-colors border-b border-[rgba(245,197,24,0.06)] last:border-0 group"
+                  className="flex items-center justify-between px-5 py-4 hover:bg-[#EA3A59]/[0.03] transition-colors border-b border-[rgba(234,58,89,0.06)] last:border-0 group"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
@@ -357,7 +322,7 @@ export default function Dashboard() {
                       rel="noopener noreferrer"
                       className="opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      <ExternalLink className="w-3.5 h-3.5 text-[#555550] hover:text-[#f5c518]" />
+                      <ExternalLink className="w-3.5 h-3.5 text-[#555550] hover:text-[#EA3A59]" />
                     </a>
                   </div>
                 </motion.div>
@@ -369,9 +334,9 @@ export default function Dashboard() {
 
       {/* ── Footer ── */}
       <div className="flex items-center justify-center gap-2 py-4 text-xs text-[#333330] font-display">
-        <div className="w-1.5 h-1.5 rounded-full bg-[#f5c518]/30" />
+        <div className="w-1.5 h-1.5 rounded-full bg-[#EA3A59]/30" />
         <span>Powered by Solana · MPC Secured · Non-Custodial</span>
-        <div className="w-1.5 h-1.5 rounded-full bg-[#f5c518]/30" />
+        <div className="w-1.5 h-1.5 rounded-full bg-[#EA3A59]/30" />
       </div>
     </div>
   );

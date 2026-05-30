@@ -103,7 +103,10 @@ export default function SwapInterface() {
       setQuote(data);
       const outDecimals = outputToken.symbol === "SOL" ? 9 : 6;
       const outAmountRaw = (data as any).quote?.outAmount || "0";
-      setOutputAmount((parseInt(outAmountRaw) / 10 ** outDecimals).toFixed(outDecimals > 6 ? 4 : 2));
+      const rawOut = parseInt(outAmountRaw) / 10 ** outDecimals;
+      // Deduct the 0.5% fee on output for display
+      const netOut = rawOut * 0.995;
+      setOutputAmount(netOut.toFixed(outDecimals > 6 ? 4 : 2));
     } catch (err: any) {
       setError(err.message || "Failed to fetch quote");
       setOutputAmount("");
@@ -189,7 +192,7 @@ export default function SwapInterface() {
                   onClick={() => setSlippage(bps)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     slippage === bps
-                      ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                      ? "bg-[#EA3A59]/20 text-[#ff6b84] border border-[#EA3A59]/30"
                       : "bg-white/[0.03] text-zinc-400 border border-white/[0.06] hover:bg-white/[0.06]"
                   }`}
                 >
@@ -213,7 +216,7 @@ export default function SwapInterface() {
       )}
 
       <Card className="p-2 sm:p-4 backdrop-blur-3xl relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#EA3A59]/20 to-transparent" />
 
         {/* Input Token */}
         <div className="bg-white/[0.02] rounded-2xl p-4 sm:p-5 border border-white/[0.04]">
@@ -221,7 +224,7 @@ export default function SwapInterface() {
             <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">You Pay</label>
             <button
               onClick={() => { setInputAmount(inputHuman); handleInputChange(inputHuman); }}
-              className="text-xs text-zinc-500 hover:text-indigo-400 transition-colors"
+              className="text-xs text-zinc-500 hover:text-[#EA3A59] transition-colors"
             >
               Balance: {inputHuman}
             </button>
@@ -268,7 +271,24 @@ export default function SwapInterface() {
 
         {/* Quote details */}
         {quote && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 px-2 flex flex-col gap-1">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 px-2 flex flex-col gap-1.5 animate-fade-up">
+            <div className="flex justify-between text-xs">
+              <span className="text-zinc-500">Real Market Price</span>
+              <span className="text-zinc-300 font-mono">
+                1 {inputToken.symbol} ≈ {(
+                  (parseInt(quote.quote?.outAmount || "0") / 10 ** (outputToken.symbol === "SOL" ? 9 : 6)) /
+                  (parseFloat(inputAmount) || 1)
+                ).toFixed(4)} {outputToken.symbol}
+              </span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-zinc-500">Platform Fee (0.5%)</span>
+              <span className="text-zinc-400 font-mono">
+                {(
+                  (parseInt(quote.quote?.outAmount || "0") / 10 ** (outputToken.symbol === "SOL" ? 9 : 6)) * 0.005
+                ).toFixed(4)} {outputToken.symbol}
+              </span>
+            </div>
             <div className="flex justify-between text-xs">
               <span className="text-zinc-500">Price Impact</span>
               <span className={`font-mono ${parseFloat(quote.quote?.priceImpactPct || "0") > 1 ? "text-amber-400" : "text-zinc-400"}`}>

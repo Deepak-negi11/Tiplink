@@ -17,7 +17,7 @@ const navItems = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
-  const { user, token, logout } = useAuthStore();
+  const { user, token, logout, network, setNetwork } = useAuthStore();
 
   const [mounted, setMounted] = useState(false);
 
@@ -35,18 +35,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const shortEmail   = user?.email ? user.email.split("@")[0] : "";
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e8e3d5] flex flex-col md:flex-row relative overflow-hidden">
+    <div className="min-h-screen bg-black text-[#e8e3d5] flex flex-col md:flex-row relative overflow-hidden">
 
       {/* ── Ambient orbs ── */}
       <div className="orb orb-brand fixed top-[-20%] left-[-10%] w-[45%] h-[45%] pointer-events-none z-0" />
       <div className="orb orb-brand-dim fixed bottom-[-15%] right-[-10%] w-[35%] h-[35%] pointer-events-none z-0" />
 
       {/* ══ Sidebar ══ */}
-      <nav className="w-full md:w-[260px] md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--primary)]/10 bg-[#0d0d0d]/95 backdrop-blur-xl flex flex-col z-20 md:fixed md:left-0 md:top-0 shrink-0">
+      <nav className="w-full md:w-[260px] md:min-h-screen border-b md:border-b-0 md:border-r border-[#EA3A59]/10 bg-[#050505]/95 backdrop-blur-xl flex flex-col z-20 md:fixed md:left-0 md:top-0 shrink-0">
 
         {/* Logo */}
-        <div className="px-6 py-6 flex items-center gap-3 border-b border-[var(--primary)]/10">
-          <div className="w-10 h-9 rounded-lg bg-[var(--primary)] flex items-center justify-center font-bold text-lg text-white shadow-lg shadow-[var(--primary)]/20 font-display">
+        <div className="px-6 py-6 flex items-center gap-3 border-b border-[#EA3A59]/10">
+          <div className="w-10 h-9 rounded-lg bg-[#EA3A59] flex items-center justify-center font-bold text-lg text-white shadow-lg shadow-[#EA3A59]/20 font-display">
             Or
           </div>
           <span className="font-display font-bold text-xl tracking-tight text-white">Orbit</span>
@@ -62,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 relative ${
                     isActive
-                      ? "bg-[var(--primary)]/[0.15] text-[var(--primary-light)]"
+                      ? "bg-[#EA3A59]/[0.15] text-[#ff6b84]"
                       : "text-[#555550] hover:text-[#e8e3d5] hover:bg-white/[0.04]"
                   }`}
                 >
@@ -87,10 +87,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* User + Logout */}
-        <div className="p-4 hidden md:flex flex-col gap-2 border-t border-[var(--primary)]/10">
+        <div className="p-4 hidden md:flex flex-col gap-2 border-t border-[#EA3A59]/10">
           {user && (
-            <div className="flex items-center gap-3 px-3 py-2">
-              <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center text-xs font-bold text-[var(--primary-light)] font-display shrink-0">
+            <div className="flex items-center gap-3 px-3 py-2 mb-1">
+              <div className="w-8 h-8 rounded-full bg-[#EA3A59]/10 border border-[#EA3A59]/20 flex items-center justify-center text-xs font-bold text-[#EA3A59] font-display shrink-0">
                 {shortEmail.charAt(0).toUpperCase()}
               </div>
               <div className="flex flex-col min-w-0">
@@ -101,6 +101,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
           )}
+
+          {/* Network Switcher */}
+          <div className="px-3 py-2 flex items-center justify-between border-t border-[#EA3A59]/5 pt-3 mt-1 mb-2">
+            <span className="text-[10px] font-bold text-[#555550] uppercase tracking-wider font-display">Network</span>
+            <div className="flex bg-black border border-[#EA3A59]/15 rounded-lg p-0.5 relative z-30">
+              <button
+                onClick={() => setNetwork("mainnet")}
+                className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                  network === "mainnet"
+                    ? "bg-[#EA3A59] text-white shadow-md shadow-[#EA3A59]/25 font-display"
+                    : "text-[#555550] hover:text-[#e8e3d5]"
+                }`}
+              >
+                Mainnet
+              </button>
+              <button
+                onClick={() => setNetwork("devnet")}
+                className={`px-2.5 py-1 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                  network === "devnet"
+                    ? "bg-[#EA3A59] text-white shadow-md shadow-[#EA3A59]/25 font-display"
+                    : "text-[#555550] hover:text-[#e8e3d5]"
+                }`}
+              >
+                Devnet
+              </button>
+            </div>
+          </div>
+
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-2.5 w-full text-left text-[#555550] hover:text-[#ff3b30] hover:bg-[#ff3b30]/[0.06] rounded-xl transition-all duration-200 text-sm font-semibold font-display"

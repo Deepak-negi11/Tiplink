@@ -20,15 +20,20 @@ interface LookupResult {
 }
 
 function TokenIcon({ symbol }: { symbol: string }) {
-  const colors: Record<string, { bg: string; text: string; border: string }> = {
-    SOL: { bg: "bg-violet-500/15", text: "text-violet-400", border: "border-violet-500/20" },
-    USDC: { bg: "bg-sky-500/15", text: "text-sky-400", border: "border-sky-500/20" },
-    WBTC: { bg: "bg-orange-500/15", text: "text-orange-400", border: "border-orange-500/20" },
+  const logos: Record<string, string> = {
+    SOL: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png",
+    USDC: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
+    WBTC: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh/logo.png",
   };
-  const c = colors[symbol] || { bg: "bg-zinc-500/15", text: "text-zinc-400", border: "border-zinc-500/20" };
+  const logo = logos[symbol];
+  if (logo) {
+    return (
+      <img src={logo} alt={symbol} className="w-5.5 h-5.5 rounded-full object-cover border border-white/10" />
+    );
+  }
   return (
-    <div className={`w-7 h-7 rounded-full ${c.bg} flex items-center justify-center border ${c.border}`}>
-      <span className={`${c.text} font-bold text-[10px]`}>{symbol}</span>
+    <div className="w-5.5 h-5.5 rounded-full bg-zinc-800 flex items-center justify-center text-[8px] font-bold text-zinc-400 border border-zinc-700">
+      {symbol.slice(0, 2)}
     </div>
   );
 }
@@ -233,7 +238,7 @@ export default function SendPage() {
             </p>
 
             <Card className="w-full p-5 relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/[0.03] to-violet-500/[0.03] opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#EA3A59]/[0.03] to-[#ff6b84]/[0.03] opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="flex bg-black/30 border border-white/[0.06] rounded-xl p-3 items-center gap-3">
                 <LinkIcon className="w-4 h-4 text-zinc-500 shrink-0 hidden sm:block" />
                 <input
@@ -264,7 +269,7 @@ export default function SendPage() {
       </div>
 
       <Card className="p-6 backdrop-blur-3xl relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#EA3A59]/30 to-transparent" />
 
         <AnimatePresence>
           {error && (
@@ -291,7 +296,7 @@ export default function SendPage() {
                 placeholder="Wallet address, email, or leave empty for link"
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
-                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 pl-10 text-sm text-white placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 pl-10 text-sm text-white placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-[#EA3A59]/30 transition-all"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2">
                 {mode === "email" ? (
@@ -385,7 +390,7 @@ export default function SendPage() {
               placeholder="e.g. Coffee money ☕"
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+              className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-[#EA3A59]/30 transition-all"
             />
           </div>
 

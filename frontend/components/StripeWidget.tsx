@@ -113,7 +113,7 @@ export function StripeWidget({ walletAddress, onClose }: StripeWidgetProps) {
             </div>
           ) : !clientSecret ? (
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-6 h-6 text-[#f5c518] animate-spin" />
+              <Loader2 className="w-6 h-6 text-[#EA3A59] animate-spin" />
               <p className="text-sm text-zinc-400">Connecting to Stripe...</p>
             </div>
           ) : (

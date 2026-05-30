@@ -14,6 +14,8 @@ pub fn init_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api")
             .configure(auth::configure)
+            // Contact form submissions (no auth required)
+            .route("/contact", web::post().to(crate::handlers::contact_handler::submit_message))
             // MoonPay webhook (no auth — called by MoonPay servers)
             .route("/moonpay/webhook", web::post().to(crate::handlers::moonpay_handlers::webhook))
             .service(

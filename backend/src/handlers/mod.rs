@@ -1,4 +1,5 @@
 pub mod auth_handler;
+pub mod contact_handler;
 pub mod link_handler;
 pub mod moonpay_handlers;
 pub mod swap_handler;

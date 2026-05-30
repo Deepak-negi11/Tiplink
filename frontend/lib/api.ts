@@ -1,3 +1,5 @@
+import { useAuthStore } from "@/store/useStore";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 type RequestOptions = {
@@ -16,6 +18,10 @@ export async function fetchApi<T>(endpoint: string, options: RequestOptions = {}
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+
+  // Inject current network header dynamically
+  const network = useAuthStore.getState().network || "mainnet";
+  headers["x-network"] = network;
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method,

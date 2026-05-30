@@ -157,4 +157,32 @@ impl Balance {
         ))
         .execute(conn)
     }
+
+    /// Sync SOL balance (overwrites cached amount with on-chain amount)
+    pub fn sync_sol_balance(
+        conn: &mut PgConnection,
+        user_id_val: Uuid,
+        mint: &str,
+        new_amount: i64,
+    ) -> QueryResult<usize> {
+        diesel::insert_into(balances::table)
+            .values((
+                balances::user_id.eq(user_id_val),
+                balances::token_mint.eq(mint),
+                balances::token_symbol.eq("SOL"),
+                balances::amount.eq(new_amount),
+                balances::available.eq(new_amount),
+                balances::locked.eq(0),
+                balances::decimals.eq(9),
+                balances::updated_at.eq(Utc::now()),
+            ))
+            .on_conflict((balances::user_id, balances::token_mint))
+            .do_update()
+            .set((
+                balances::amount.eq(new_amount),
+                balances::available.eq(diesel::dsl::sql::<diesel::sql_types::BigInt>(&format!("{} - locked", new_amount))),
+                balances::updated_at.eq(Utc::now()),
+            ))
+            .execute(conn)
+    }
 }

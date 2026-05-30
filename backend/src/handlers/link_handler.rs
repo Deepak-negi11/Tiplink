@@ -16,8 +16,13 @@ use sha2::{Sha256, Digest};
 use rand::{distributions::Alphanumeric, Rng};
 use std::env;
 
-/// Returns the required Solana RPC URL.
-fn solana_rpc_url() -> String {
+/// Returns the required Solana RPC URL based on header.
+fn solana_rpc_url(req: &HttpRequest) -> String {
+    if let Some(net) = req.headers().get("x-network") {
+        if net.to_str().unwrap_or("").to_lowercase() == "devnet" {
+            return "https://api.devnet.solana.com".to_string();
+        }
+    }
     env::var("SOLANA_RPC_URL")
         .expect("FATAL: SOLANA_RPC_URL must be set.")
 }
@@ -42,12 +47,14 @@ fn get_user_pubkey(conn: &mut diesel::PgConnection, user_id: Uuid) -> Result<Str
 }
 
 /// Look up the decimal precision for a given token mint from the user's balance table.
-fn get_token_decimals(conn: &mut diesel::PgConnection, user_id: Uuid, mint: &str) -> Result<i16, AppError> {
-    let balance = Balance::get_token_balance(conn, user_id, mint)?;
+fn get_token_decimals(conn: &mut diesel::PgConnection, user_id: Uuid, mint: &str, is_devnet: bool) -> Result<i16, AppError> {
+    let db_mint = crate::services::solana::to_db_mint(mint, is_devnet);
+    let balance = Balance::get_token_balance(conn, user_id, &db_mint)?;
     match balance {
         Some(b) => Ok(b.decimals),
         None => {
-            match mint {
+            let standard_mint = crate::services::solana::to_client_mint(&db_mint);
+            match standard_mint.as_str() {
                 "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => Ok(6),
                 "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" => Ok(6),
                 "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh" => Ok(8),
@@ -67,11 +74,18 @@ pub async fn create_link(
     let user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
-    let decimals = get_token_decimals(&mut conn, user_id, &body.token_mint)?;
+    let is_devnet = if let Some(net) = req.headers().get("x-network") {
+        net.to_str().unwrap_or("").to_lowercase() == "devnet"
+    } else {
+        false
+    };
+    let db_mint = crate::services::solana::to_db_mint(&body.token_mint, is_devnet);
+
+    let decimals = get_token_decimals(&mut conn, user_id, &body.token_mint, is_devnet)?;
     let multiplier = 10_i64.pow(decimals as u32);
     let amount_i64 = (body.amount * multiplier as f64) as i64;
 
-    let balance = Balance::get_token_balance(&mut conn, user_id, &body.token_mint)?
+    let balance = Balance::get_token_balance(&mut conn, user_id, &db_mint)?
         .ok_or_else(|| AppError::BadRequest("Token balance not found".to_string()))?;
         
     if balance.available < amount_i64 {
@@ -88,7 +102,7 @@ pub async fn create_link(
     hasher.update(secret_code.as_bytes());
     let claim_hash = format!("{:x}", hasher.finalize());
 
-    Balance::lock_funds(&mut conn, user_id, &body.token_mint, amount_i64)?;
+    Balance::lock_funds(&mut conn, user_id, &db_mint, amount_i64)?;
 
     let user_pubkey = get_user_pubkey(&mut conn, user_id)?;
     let link_id = Uuid::new_v4();
@@ -100,7 +114,7 @@ pub async fn create_link(
         creator_id: user_id,
         escrow_pda: &escrow_pda,
         claim_hash: &claim_hash,
-        token_mint: &body.token_mint,
+        token_mint: &db_mint,
         amount: amount_i64,
         recipient_email: None,
         recipient_phone: None,
@@ -154,7 +168,7 @@ pub async fn get_link(
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": link.status,
         "amount": link.amount,
-        "token": link.token_mint,
+        "token": crate::services::solana::to_client_mint(&link.token_mint),
         "memo": link.memo
     })))
 }
@@ -184,7 +198,7 @@ pub async fn claim_link(
     let dkg_conf = mpc_config()?;
     let _ = crate::services::dkg::generate_keypair(&dkg_conf, user_id).await;
 
-    let rpc_url = solana_rpc_url();
+    let rpc_url = solana_rpc_url(&req);
     let rpc_client = RpcClient::new(rpc_url);
     let unsigned_tx = build_transfer_tx(&rpc_client, &link.escrow_pda, &body.receiver_address, link.amount as u64).await?;
 

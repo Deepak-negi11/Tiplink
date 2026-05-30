@@ -18,20 +18,20 @@
 }
 
 :root {
-  /* Core Palette */
-  --background:        #0a0a0a;
+  /* Core Palette — Red & Black */
+  --background:        #000000;
   --foreground:        #e8e3d5;
-  --primary:           oklch(28.3% 0.141 291.089);
-  --primary-light:     oklch(70% 0.12 291.089);
+  --primary:           #EA3A59;
+  --primary-light:     #ff6b84;
   --primary-foreground:#ffffff;
-  --primary-dim:       oklch(25% 0.12 291.089);
-  --primary-glow:      rgba(79, 70, 229, 0.15);
+  --primary-dim:       #c22e48;
+  --primary-glow:      rgba(234, 58, 89, 0.15);
 
   /* Surfaces */
-  --surface:           #131313;
-  --surface-low:       #1a1a1a;
-  --surface-high:      #222222;
-  --surface-highest:   #2d2d2d;
+  --surface:           #0a0a0a;
+  --surface-low:       #111111;
+  --surface-high:      #1a1a1a;
+  --surface-highest:   #242424;
 
   /* Text */
   --muted:             #888880;
@@ -40,7 +40,7 @@
   /* Semantic */
   --success:           #00d26a;
   --danger:            #ff3b30;
-  --outline:           rgba(79, 70, 229, 0.12);
+  --outline:           rgba(234, 58, 89, 0.12);
 }
 
 /* ── Scrollbar ── */
@@ -73,8 +73,8 @@ body {
 /* ── Brand glow text ── */
 .text-glow-brand {
   text-shadow:
-    0 0 30px oklch(28.3% 0.141 291.089 / 0.5),
-    0 0 80px oklch(28.3% 0.141 291.089 / 0.2);
+    0 0 30px rgba(234, 58, 89, 0.5),
+    0 0 80px rgba(234, 58, 89, 0.2);
 }
 
 /* ── Brand gradient text ── */
@@ -93,10 +93,10 @@ body {
   filter: blur(120px);
 }
 .orb-brand {
-  background: radial-gradient(circle, oklch(28.3% 0.141 291.089 / 0.07) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(234, 58, 89, 0.07) 0%, transparent 70%);
 }
 .orb-brand-dim {
-  background: radial-gradient(circle, oklch(28.3% 0.141 291.089 / 0.04) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(234, 58, 89, 0.04) 0%, transparent 70%);
 }
 
 /* ── Shimmer skeleton ── */
@@ -166,10 +166,10 @@ body {
   height: 20px;
   border-radius: 0 2px 2px 0;
   background: var(--primary);
-  box-shadow: 0 0 12px oklch(28.3% 0.141 291.089 / 0.5);
+  box-shadow: 0 0 12px rgba(234, 58, 89, 0.5);
 }
 
-/* ── Yellow top accent line on cards ── */
+/* ── Top accent line on cards ── */
 .card-accent-top::before {
   content: '';
   display: block;
@@ -184,6 +184,78 @@ body {
 /* ── Input focus ring ── */
 .input-brand:focus {
   outline: none;
-  border-color: oklch(28.3% 0.141 291.089 / 0.45);
-  box-shadow: 0 0 0 3px oklch(28.3% 0.141 291.089 / 0.08);
+  border-color: rgba(234, 58, 89, 0.45);
+  box-shadow: 0 0 0 3px rgba(234, 58, 89, 0.08);
+}
+
+/* ── Orbit animation for logo ── */
+@keyframes orbit {
+  0%   { transform: rotate(0deg) translateX(6px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(6px) rotate(-360deg); }
+}
+.animate-orbit {
+  animation: orbit 3s linear infinite;
+}
+
+/* ── Pulse slow ── */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 0.8; transform: scale(1.1); }
+}
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* ══════════════════════════════════════
+   FLYING ROCKET — continuous navbar animation
+   ══════════════════════════════════════ */
+@keyframes fly-across {
+  0% {
+    transform: translateX(-60px) translateY(0);
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  95% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(calc(100vw + 60px)) translateY(0);
+    opacity: 0;
+  }
+}
+.animate-fly-across {
+  animation: fly-across 8s linear infinite;
+}
+
+/* ══════════════════════════════════════
+   FLOWING WAVE LINES — hero background
+   ══════════════════════════════════════ */
+@keyframes wave-flow {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-wave-flow {
+  animation: wave-flow 20s linear infinite;
+}
+
+/* ── Text reveal ── */
+@keyframes text-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+.animate-text-reveal {
+  animation: text-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── Glow green text (for success states) ── */
+.text-glow-green {
+  text-shadow: 0 0 20px rgba(0, 210, 106, 0.4);
 }

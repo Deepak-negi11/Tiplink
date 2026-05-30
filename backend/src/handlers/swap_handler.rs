@@ -31,8 +31,13 @@ pub struct SubmitSwapRequest {
     pub signed_tx: Vec<u8>,
 }
 
-/// Returns the required Solana RPC URL. Panics if not set.
-fn solana_rpc_url() -> String {
+/// Returns the required Solana RPC URL based on header.
+fn solana_rpc_url(req: &HttpRequest) -> String {
+    if let Some(net) = req.headers().get("x-network") {
+        if net.to_str().unwrap_or("").to_lowercase() == "devnet" {
+            return "https://api.devnet.solana.com".to_string();
+        }
+    }
     env::var("SOLANA_RPC_URL")
         .expect("FATAL: SOLANA_RPC_URL must be set.")
 }
@@ -53,10 +58,11 @@ pub async fn get_quote(
 
     let (amount_after_fee, fee_amount) = calculate_fee(body.amount, 50);
 
+    // Query Jupiter with the full amount to get the real market exchange rate
     let quote = crate::services::jupiter::get_quote(
         &body.input_mint,
         &body.output_mint,
-        amount_after_fee,
+        body.amount,
         body.slippage_bps
     ).await?;
 
@@ -80,9 +86,16 @@ pub async fn execute_swap(
     let user_id = req.extensions().get::<Uuid>().cloned()
         .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
 
+    let is_devnet = if let Some(net) = req.headers().get("x-network") {
+        net.to_str().unwrap_or("").to_lowercase() == "devnet"
+    } else {
+        false
+    };
+    let db_input_mint = crate::services::solana::to_db_mint(&body.quote.input_mint, is_devnet);
+
     let input_amount_str = &body.quote.in_amount;
     let amount_u64: u64 = input_amount_str.parse().unwrap_or(0);
-    let balance = Balance::get_token_balance(&mut conn, user_id, &body.quote.input_mint)?
+    let balance = Balance::get_token_balance(&mut conn, user_id, &db_input_mint)?
         .ok_or_else(|| AppError::BadRequest("Token balance tracking entirely missing on DB".to_string()))?;
         
     if balance.available < amount_u64 as i64 {
@@ -135,17 +148,25 @@ pub async fn submit_swap(
     let mpc_cfg = mpc_config()?;
     let signed_tx = coordinate_transaction_signature(&mpc_cfg, user_uuid, &BASE64.decode(&intent.unsigned_payload.unwrap_or_default()).unwrap_or_default()).await?;
 
-    let rpc_url = solana_rpc_url();
+    let rpc_url = solana_rpc_url(&req);
     let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(rpc_url);
     let sig = submit_transaction(&rpc_client, &BASE64.encode(&signed_tx)).await?;
 
     let input_amount_i64: i64 = quote.in_amount.parse().unwrap_or(0);
     let (_amount_after_fee, fee_amount) = calculate_fee(input_amount_i64 as u64, 50);
 
+    let is_devnet = if let Some(net) = req.headers().get("x-network") {
+        net.to_str().unwrap_or("").to_lowercase() == "devnet"
+    } else {
+        false
+    };
+    let db_input_mint = crate::services::solana::to_db_mint(&quote.input_mint, is_devnet);
+    let db_output_mint = crate::services::solana::to_db_mint(&quote.output_mint, is_devnet);
+
     let new_swap = crate::db::swap::NewSwapEntry {
         user_id: user_uuid,
-        input_mint: &quote.input_mint,
-        output_mint: &quote.output_mint,
+        input_mint: &db_input_mint,
+        output_mint: &db_output_mint,
         output_amount: 0, // Updated by indexer once confirmed
         input_amount: input_amount_i64,
         fee_amount: fee_amount as i64,
@@ -156,7 +177,7 @@ pub async fn submit_swap(
     };
     let _swap_id = crate::db::swap::SwapEntry::create_entry(&mut conn, new_swap)?;
 
-    let _ = Balance::subtract_balance(&mut conn, user_uuid, &quote.input_mint, input_amount_i64);
+    let _ = Balance::subtract_balance(&mut conn, user_uuid, &db_input_mint, input_amount_i64);
 
     diesel::delete(transaction_intents.filter(id.eq(body.nonce))).execute(&mut conn)
         .map_err(|_| AppError::InternalServerError("Failed to wipe execution lock".to_string()))?;

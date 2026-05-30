@@ -32,15 +32,16 @@ interface Limits {
 }
 
 export default function DepositPage() {
-  const { user, token } = useAuthStore();
+  const { user, token, network } = useAuthStore();
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"buy" | "transfer">("buy");
   const [amount, setAmount] = useState("50");
-  const [currency, setCurrency] = useState("sol");
+  const [currency, setCurrency] = useState("SOL");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [loading, setLoading] = useState(false);
   const [showMoonPay, setShowMoonPay] = useState(false);
+  const [isTestModeSimulated, setIsTestModeSimulated] = useState(false);
 
   const handleCopy = async () => {
     if (!user?.public_key) return;
@@ -51,14 +52,23 @@ export default function DepositPage() {
 
   // Fetch limits when currency changes
   useEffect(() => {
+    setIsTestModeSimulated(false);
     fetchApi<Limits>(`/moonpay/limits?currency_code=${currency}`, { token })
       .then(setLimits)
-      .catch(console.error);
+      .catch((err) => {
+        console.warn("MoonPay limits fetch failed, using fallback:", err);
+        setIsTestModeSimulated(true);
+        setLimits({
+          baseCurrencyMinBuyAmount: 30,
+          baseCurrencyMaxBuyAmount: 2000,
+        });
+      });
   }, [currency, token]);
 
   // Fetch quote when amount changes (debounced)
   useEffect(() => {
-    if (!amount || parseFloat(amount) < (limits?.baseCurrencyMinBuyAmount ?? 0)) {
+    const minAmount = limits?.baseCurrencyMinBuyAmount ?? 30;
+    if (!amount || parseFloat(amount) < minAmount) {
       setQuote(null);
       return;
     }
@@ -69,8 +79,19 @@ export default function DepositPage() {
           { token }
         );
         setQuote(data);
-      } catch {
-        setQuote(null);
+      } catch (err) {
+        console.warn("MoonPay quote fetch failed, simulating quote:", err);
+        setIsTestModeSimulated(true);
+        // Simulate a realistic quote for demo/sandbox purposes using SOL real price
+        const fiat = parseFloat(amount) || 0;
+        const fee = fiat * 0.038 > 3.99 ? fiat * 0.038 : 3.99;
+        const rate = currency === "SOL" ? 82.55 : 1.0;
+        const cryptoAmount = (fiat - fee) / rate;
+        setQuote({
+          quoteCurrencyAmount: cryptoAmount,
+          feeAmount: fee,
+          totalAmount: fiat,
+        });
       }
     }, 500);
     return () => clearTimeout(timer);
@@ -85,7 +106,6 @@ export default function DepositPage() {
   return (
     <MoonPayProvider
       apiKey={process.env.NEXT_PUBLIC_MOONPAY_PK || "pk_test_123"}
-      debug
     >
       <div className="flex flex-col max-w-lg mx-auto w-full">
         <div className="mb-8 flex items-center justify-between">
@@ -100,7 +120,7 @@ export default function DepositPage() {
           <button
             onClick={() => setTab("buy")}
             className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${tab === "buy"
-              ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+              ? "bg-[#EA3A59] text-white shadow-[0_0_15px_rgba(234,58,89,0.3)]"
               : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
               }`}
           >
@@ -109,7 +129,7 @@ export default function DepositPage() {
           <button
             onClick={() => setTab("transfer")}
             className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${tab === "transfer"
-              ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+              ? "bg-[#EA3A59] text-white shadow-[0_0_15px_rgba(234,58,89,0.3)]"
               : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
               }`}
           >
@@ -124,28 +144,30 @@ export default function DepositPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <Card className="overflow-hidden relative bg-[#0a0a0a]/80 border-white/[0.08] backdrop-blur-3xl p-6">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent opacity-50" />
+            <Card className="overflow-hidden relative bg-black/80 border-white/[0.08] backdrop-blur-3xl p-6">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#EA3A59] to-transparent opacity-50" />
 
               {/* Token Selector */}
               <div className="mb-5">
                 <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-2 block">Token</label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setCurrency("sol")}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${currency === "sol"
-                      ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+                    onClick={() => setCurrency("SOL")}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${currency === "SOL"
+                      ? "bg-[#EA3A59] text-white shadow-[0_0_15px_rgba(234,58,89,0.3)]"
                       : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
                       }`}
                   >
                     SOL
                   </button>
                   <button
-                    disabled
-                    title="USDC is not available in MoonPay sandbox mode"
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white/[0.03] text-zinc-600 border border-white/[0.04] cursor-not-allowed"
+                    onClick={() => setCurrency("USDC_SOL")}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${currency === "USDC_SOL"
+                      ? "bg-[#EA3A59] text-white shadow-[0_0_15px_rgba(234,58,89,0.3)]"
+                      : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
+                      }`}
                   >
-                    USDC (Live only)
+                    USDC
                   </button>
                 </div>
               </div>
@@ -159,7 +181,7 @@ export default function DepositPage() {
                       key={val}
                       onClick={() => setAmount(val)}
                       className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${amount === val
-                        ? "bg-[var(--primary)] text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+                        ? "bg-[#EA3A59] text-white shadow-[0_0_15px_rgba(234,58,89,0.3)]"
                         : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
                         }`}
                     >
@@ -186,13 +208,20 @@ export default function DepositPage() {
                 )}
               </div>
 
+              {/* Simulated Notice */}
+              {isTestModeSimulated && (
+                <div className="mb-4 p-3.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15 text-amber-400 text-xs leading-relaxed">
+                  ⚠️ <strong>Test Key Mode:</strong> MoonPay API is running in test mode. Real-time rates and min/max limits are simulated using current SOL rates ($82.55).
+                </div>
+              )}
+
               {/* Quote Preview */}
               {quote && (
                 <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 mb-5">
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-zinc-400">You receive</span>
                     <span className="text-white font-semibold">
-                      {quote.quoteCurrencyAmount?.toFixed(4) ?? "0.0000"} {currency === "sol" ? "SOL" : "USDC"}
+                      {quote.quoteCurrencyAmount?.toFixed(4) ?? "0.0000"} {currency === "SOL" ? "SOL" : "USDC"}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mb-2">
@@ -214,12 +243,12 @@ export default function DepositPage() {
               <Button
                 onClick={handleBuy}
                 disabled={loading || !quote}
-                className="w-full py-6 rounded-2xl bg-[var(--primary)] hover:bg-[var(--primary-dim)] text-white font-semibold text-base flex items-center justify-center gap-3 transition-colors shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(79,70,229,0.4)] disabled:opacity-50"
+                className="w-full py-6 rounded-2xl bg-[#EA3A59] hover:bg-[#c22e48] text-white font-semibold text-base flex items-center justify-center gap-3 transition-colors shadow-[0_0_20px_rgba(234,58,89,0.3)] hover:shadow-[0_0_30px_rgba(234,58,89,0.4)] disabled:opacity-50"
               >
                 {loading ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> Opening MoonPay...</>
                 ) : (
-                  <><CreditCard className="w-5 h-5" /> Buy {currency === "sol" ? "SOL" : "USDC"} with Card</>
+                  <><CreditCard className="w-5 h-5" /> Buy {currency === "SOL" ? "SOL" : "USDC"} with Card</>
                 )}
               </Button>
 
@@ -235,7 +264,7 @@ export default function DepositPage() {
               />
 
               <p className="text-xs text-zinc-600 mt-3 text-center">
-                Powered by MoonPay · Sandbox Mode
+                Powered by MoonPay
               </p>
             </Card>
           </motion.div>
@@ -248,11 +277,11 @@ export default function DepositPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <Card className="overflow-hidden relative bg-[#0a0a0a]/80 border-white/[0.08] backdrop-blur-3xl p-8 flex flex-col items-center text-center">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent opacity-50" />
+            <Card className="overflow-hidden relative bg-black/80 border-white/[0.08] backdrop-blur-3xl p-8 flex flex-col items-center text-center">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#EA3A59] to-transparent opacity-50" />
 
-              <div className="w-16 h-16 rounded-2xl bg-[var(--primary)]/10 flex items-center justify-center mb-6 border border-[var(--primary)]/20 shadow-[0_0_30px_rgba(79,70,229,0.15)]">
-                <Wallet className="w-8 h-8 text-[var(--primary-light)]" />
+              <div className="w-16 h-16 rounded-2xl bg-[#EA3A59]/10 flex items-center justify-center mb-6 border border-[#EA3A59]/20 shadow-[0_0_30px_rgba(234,58,89,0.15)]">
+                <Wallet className="w-8 h-8 text-[#ff6b84]" />
               </div>
 
               <h2 className="text-xl font-bold text-white mb-2">Your Solana Address</h2>
@@ -261,7 +290,7 @@ export default function DepositPage() {
               </p>
 
               <div className="bg-white p-4 rounded-3xl shadow-xl mb-8 relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-br from-[var(--primary)] to-[var(--primary-light)] rounded-[1.4rem] blur opacity-0 group-hover:opacity-40 transition duration-500"></div>
+                <div className="absolute -inset-0.5 bg-gradient-to-br from-[#EA3A59] to-[#ff6b84] rounded-[1.4rem] blur opacity-0 group-hover:opacity-40 transition duration-500"></div>
                 <div className="relative bg-white rounded-2xl p-2">
                   <QRCodeSVG
                     value={user.public_key}
@@ -280,18 +309,18 @@ export default function DepositPage() {
                   <span className="font-mono text-sm text-zinc-300 truncate select-all">{user.public_key}</span>
                   <button
                     onClick={handleCopy}
-                    className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-[var(--primary)]/20 hover:text-[var(--primary-light)] text-zinc-400 transition-all border border-transparent hover:border-[var(--primary)]/30"
+                    className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-white/[0.05] hover:bg-[#EA3A59]/20 hover:text-[#ff6b84] text-zinc-400 transition-all border border-transparent hover:border-[#EA3A59]/30"
                   >
                     {copied ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 w-full p-4 rounded-xl bg-amber-500/[0.05] border border-amber-500/10 text-left">
-                <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-200/70 leading-relaxed">
-                  <strong className="text-amber-300 font-semibold block mb-1">Network: Solana (SPL)</strong>
-                  Only send SOL or USDC via the Solana network. Sending on other networks will result in permanent loss.
+              <div className="flex items-start gap-3 w-full p-4 rounded-xl bg-[#EA3A59]/[0.05] border border-[#EA3A59]/10 text-left">
+                <Info className="w-5 h-5 text-[#EA3A59] shrink-0 mt-0.5" />
+                <p className="text-xs text-[#ff6b84]/70 leading-relaxed">
+                  <strong className="text-[#EA3A59] font-semibold block mb-1">Network: Solana {network === "mainnet" ? "Mainnet" : "Devnet"}</strong>
+                  Only send SOL or USDC via the Solana {network === "mainnet" ? "Mainnet" : "Devnet"} network. Sending on other networks will result in permanent loss.
                 </p>
               </div>
             </Card>

@@ -23,7 +23,7 @@ export function TransakWidget({ walletAddress, onClose }: TransakProps) {
     disableWalletAddressForm: "true",
     fiatCurrency: "USD",
     defaultFiatAmount: "50",
-    themeColor: "f5c518",
+    themeColor: "EA3A59",
     colorMode: "DARK",
   });
 
@@ -57,8 +57,8 @@ export function TransakWidget({ walletAddress, onClose }: TransakProps) {
         </button>
 
         <div className="flex flex-col items-center text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#f5c518]/10 flex items-center justify-center mb-6 border border-[#f5c518]/20">
-            <CreditCard className="w-8 h-8 text-[#f5c518]" />
+          <div className="w-16 h-16 rounded-2xl bg-[#EA3A59]/10 flex items-center justify-center mb-6 border border-[#EA3A59]/20">
+            <CreditCard className="w-8 h-8 text-[#EA3A59]" />
           </div>
 
           <h3 className="text-xl font-bold text-white mb-2">Buy Crypto with Card</h3>
@@ -69,7 +69,7 @@ export function TransakWidget({ walletAddress, onClose }: TransakProps) {
           {!opened ? (
             <button
               onClick={handleOpen}
-              className="w-full py-4 rounded-xl bg-[#f5c518] hover:bg-[#d4a810] text-black font-semibold text-base flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(245,197,24,0.3)]"
+              className="w-full py-4 rounded-xl bg-[#EA3A59] hover:bg-[#c22e48] text-white font-semibold text-base flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(234,58,89,0.3)]"
             >
               <ExternalLink className="w-4 h-4" />
               Open Transak

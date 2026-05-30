@@ -16,10 +16,11 @@ pub async fn start_polling(
 
     loop {
         let addresses = tracked_accounts.all_addresses();
+        let is_devnet = rpc_url.contains("devnet");
         for addr in addresses {
             if let Ok(balance) = get_sol_balance(&client, &rpc_url, &addr).await {
                 if let Some(user_id) = tracked_accounts.get_user_id(&addr) {
-                    sync_sol_balance(&pool, user_id, balance);
+                    sync_sol_balance(&pool, user_id, balance, is_devnet);
                 }
             }
 
@@ -31,7 +32,7 @@ pub async fn start_polling(
             for (mint, symbol, decimals) in tokens {
                 if let Ok(balance) = get_token_balance(&client, &rpc_url, &addr, mint).await {
                      if let Some(user_id) = tracked_accounts.get_user_id(&addr) {
-                        sync_token_balance(&pool, user_id, mint, symbol, balance, decimals);
+                        sync_token_balance(&pool, user_id, mint, symbol, balance, decimals, is_devnet);
                      }
                 }
             }
@@ -79,28 +80,48 @@ async fn get_token_balance(client: &Client, url: &str, address: &str, mint: &str
     Ok(0)
 }
 
-fn sync_sol_balance(pool: &DbPool, user_id: uuid::Uuid, new_balance: u64) {
+fn sync_sol_balance(pool: &DbPool, user_id: uuid::Uuid, new_balance: u64, is_devnet: bool) {
     let mut conn = pool.get().expect("DB connection failed");
     use diesel::prelude::*;
     use diesel::sql_query;
     use diesel::sql_types::{Uuid as DieselUuid, Text, BigInt, SmallInt};
 
+    let db_mint = if is_devnet {
+        "devnet_So1111111111111111111111111111111111111"
+    } else {
+        "So11111111111111111111111111111111111111112"
+    };
+
     let _ = sql_query(
         "INSERT INTO balances (id, user_id, token_mint, token_symbol, amount, available, locked, decimals, updated_at)
-         VALUES (gen_random_uuid(), $1, 'So11111111111111111111111111111111111111112', 'SOL', $2, $2, 0, 9, NOW())
+         VALUES (gen_random_uuid(), $1, $2, 'SOL', $3, $3, 0, 9, NOW())
          ON CONFLICT (user_id, token_mint) DO UPDATE
-         SET amount = $2, available = $2 - balances.locked, updated_at = NOW()"
+         SET amount = $3, available = $3 - balances.locked, updated_at = NOW()"
     )
     .bind::<DieselUuid, _>(user_id)
+    .bind::<Text, _>(db_mint)
     .bind::<BigInt, _>(new_balance as i64)
     .execute(&mut conn);
 }
 
-fn sync_token_balance(pool: &DbPool, user_id: uuid::Uuid, mint: &str, symbol: &str, new_balance: u64, decimals: i16) {
+fn sync_token_balance(pool: &DbPool, user_id: uuid::Uuid, mint: &str, symbol: &str, new_balance: u64, decimals: i16, is_devnet: bool) {
     let mut conn = pool.get().expect("DB connection failed");
     use diesel::prelude::*;
     use diesel::sql_query;
     use diesel::sql_types::{Uuid as DieselUuid, Text, BigInt, SmallInt};
+
+    let db_mint = if is_devnet {
+        if mint == "So11111111111111111111111111111111111111112" {
+            "devnet_So1111111111111111111111111111111111111".to_string()
+        } else if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" {
+            "devnet_EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZw".to_string()
+        } else {
+            let trimmed = if mint.len() > 37 { &mint[..37] } else { mint };
+            format!("devnet_{}", trimmed)
+        }
+    } else {
+        mint.to_string()
+    };
 
     let _ = sql_query(
         "INSERT INTO balances (id, user_id, token_mint, token_symbol, amount, available, locked, decimals, updated_at)
@@ -109,7 +130,7 @@ fn sync_token_balance(pool: &DbPool, user_id: uuid::Uuid, mint: &str, symbol: &s
          SET amount = $4, available = $4 - balances.locked, updated_at = NOW()"
     )
     .bind::<DieselUuid, _>(user_id)
-    .bind::<Text, _>(mint)
+    .bind::<Text, _>(&db_mint)
     .bind::<Text, _>(symbol)
     .bind::<BigInt, _>(new_balance as i64)
     .bind::<SmallInt, _>(decimals)

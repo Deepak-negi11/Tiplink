@@ -56,13 +56,23 @@ pub async fn sign_url(
     let pub_key = moonpay_publishable_key()?;
     let secret_key = moonpay_secret_key()?;
 
+    let base_url = if let Some(net) = req.headers().get("x-network") {
+        if net.to_str().unwrap_or("").to_lowercase() == "devnet" {
+            "https://buy-sandbox.moonpay.com"
+        } else {
+            "https://buy.moonpay.com"
+        }
+    } else {
+        "https://buy-sandbox.moonpay.com"
+    };
+
     let widget_url = moonpay::build_widget_url(
         &pub_key,
         &user.public_key,
         &body.currency_code,
         &body.base_currency_code,
         body.base_currency_amount,
-        "https://buy-sandbox.moonpay.com",  // Switch to "https://buy.moonpay.com" in production
+        base_url,
     );
 
     let signed_url = moonpay::sign_url(&widget_url, &secret_key)?;
@@ -190,11 +200,19 @@ pub async fn webhook(
         }
 
         let lamports = (event.data.quote_currency_amount * 1_000_000_000.0) as i64;
+        let is_devnet = std::env::var("SOLANA_RPC_URL")
+            .unwrap_or_default()
+            .contains("devnet");
+        let db_mint = if is_devnet {
+            "devnet_So1111111111111111111111111111111111111"
+        } else {
+            "So11111111111111111111111111111111111111112"
+        };
 
         // Credit the user's SOL balance
         let new_bal = NewBalance {
             user_id: user.id,
-            token_mint: "So11111111111111111111111111111111111111112",
+            token_mint: db_mint,
             token_symbol: "SOL",
             amount: lamports,
             available: lamports,
@@ -208,7 +226,7 @@ pub async fn webhook(
         let new_tx = NewTransaction {
             user_id: user.id,
             amount: lamports,
-            token_mint: "So11111111111111111111111111111111111111112",
+            token_mint: db_mint,
             token_symbol: "SOL",
             tx_hash: &tx_id,
             tx_type: TxType::Deposit,

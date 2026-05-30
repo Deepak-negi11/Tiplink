@@ -9,7 +9,6 @@ use crate::services::auth::{hash_password, verify_password, generate_access_toke
 use crate::services::dkg::{generate_keypair, Config};
 use crate::error::AppError;
 
-/// Returns the JWT secret from env. Panics at startup if not set — never use a default.
 fn jwt_secret() -> String {
     std::env::var("JWT_SECRET")
         .expect("FATAL: JWT_SECRET environment variable is not set. Refusing to start with an insecure default.")
