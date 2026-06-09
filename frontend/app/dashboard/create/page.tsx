@@ -142,25 +142,26 @@ export default function SendPage() {
     setError("");
 
     try {
-      const recipientExists = lookupResult?.found === true;
-      const recipientPubkey = lookupResult?.public_key;
+      const isWalletAddress = mode === "address";
+      const recipientPubkey = lookupResult?.public_key || (isWalletAddress ? recipient : undefined);
 
-      if (recipientExists && recipientPubkey) {
-        const now = Math.floor(Date.now() / 1000);
-        const sendData = await fetchApi<{ nonce: string; unsigned_tx: string }>("/wallet/send", {
+      if (recipientPubkey) {
+        if (asset !== "SOL") {
+          setError("Direct transfers currently support SOL only. Use an Orbit link for other assets.");
+          return;
+        }
+        const sendData = await fetchApi<{ signature: string }>("/wallet/send", {
           method: "POST",
           token,
           body: {
             to: recipientPubkey,
-            amount: amount,
+            amount: parseFloat(amount),
             mint: tokenMint,
-            timestamp: now,
-            signature: "client_intent_sig", // placeholder for intent signature
           },
         });
 
         setResultType("direct");
-        setResultData({ signature: sendData.nonce });
+        setResultData({ signature: sendData.signature });
         setSuccess(true);
       } else {
         const data = await fetchApi<{ link_id: string; claim_url: string }>("/link/create", {
@@ -334,7 +335,7 @@ export default function SendPage() {
                   ) : (
                     <>
                       <LinkIcon className="w-3 h-3" />
-                      Not on Orbit — will create a claimable link
+                      External wallet — will send directly
                     </>
                   )}
                 </motion.div>
@@ -399,7 +400,7 @@ export default function SendPage() {
           <div className="flex items-center justify-between text-sm">
             <span className="text-zinc-500">Method</span>
             <span className="text-zinc-300 font-mono text-xs">
-              {lookupResult?.found ? "⚡ Direct Transfer" : "🔗 Orbit Link"}
+              {mode === "address" || lookupResult?.found ? "⚡ Direct Transfer" : "🔗 Orbit Link"}
             </span>
           </div>
 
@@ -411,7 +412,7 @@ export default function SendPage() {
           <Button type="submit" size="lg" className="w-full mt-2 py-6 rounded-2xl" disabled={loading}>
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
-            ) : lookupResult?.found ? (
+            ) : mode === "address" || lookupResult?.found ? (
               <>
                 <SendIcon className="w-4 h-4 mr-2" /> Send Directly
               </>

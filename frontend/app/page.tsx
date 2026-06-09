@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchApi } from "@/lib/api";
 import { useAuthStore } from "@/store/useStore";
@@ -124,8 +124,16 @@ export default function LandingPage() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
+  const [contactSent, setContactSent] = useState(false);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactError, setContactError] = useState("");
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const existingToken = useAuthStore((s) => s.token);
+
+  useEffect(() => {
+    if (existingToken) router.replace("/dashboard");
+  }, [existingToken, router]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,7 +147,8 @@ export default function LandingPage() {
       });
       login(
         { id: data.user_id, email: data.email, public_key: data.public_key },
-        data.token
+        data.token,
+        data.refresh_token
       );
       router.push("/dashboard");
     } catch (err: any) {
@@ -149,18 +158,26 @@ export default function LandingPage() {
     }
   };
 
-  const handleContactSubmit = (e: React.FormEvent) => {
+  const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`Orbit enquiry from ${contactName}`);
-    const body = encodeURIComponent(
-      `Name: ${contactName}\nEmail: ${contactEmail}\n\n${contactMessage}`
-    );
+    setContactLoading(true);
+    setContactError("");
+    setContactSent(false);
 
-    const gmailComposeUrl =
-      `https://mail.google.com/mail/?view=cm&fs=1&to=deepaknegi108r@gmail.com` +
-      `&su=${subject}&body=${body}`;
-
-    window.open(gmailComposeUrl, "_blank", "noopener,noreferrer");
+    try {
+      await fetchApi("/contact", {
+        method: "POST",
+        body: { name: contactName, email: contactEmail, message: contactMessage },
+      });
+      setContactSent(true);
+      setContactName("");
+      setContactEmail("");
+      setContactMessage("");
+    } catch (err: any) {
+      setContactError(err.message || "Your message could not be sent.");
+    } finally {
+      setContactLoading(false);
+    }
   };
 
   return (
@@ -410,7 +427,7 @@ export default function LandingPage() {
               Contact
             </span>
             <h2 className="font-display text-4xl sm:text-5xl font-bold text-white mb-4 text-balance">
-              Contact Orbit
+              Get in touch
             </h2>
             <p className="text-[#888880] text-lg max-w-lg mx-auto text-pretty">
               For product questions, feedback, or partnership enquiries,
@@ -495,12 +512,27 @@ export default function LandingPage() {
                     className="flex w-full rounded-xl border border-white/[0.07] bg-[#111111] px-4 py-3 text-sm text-[#e8e3d5] placeholder:text-[#555550] focus-visible:outline-none focus-visible:border-[#EA3A59]/45 focus-visible:ring-[3px] focus-visible:ring-[#EA3A59]/8 transition-all duration-200 resize-none"
                   />
                 </div>
-                <Button type="submit" size="lg" className="w-full mt-2">
-                  Open Gmail draft <ArrowRight className="ml-2 w-4 h-4" />
+                <Button type="submit" size="lg" className="w-full mt-2" disabled={contactLoading}>
+                  {contactLoading ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" /> Sending...
+                    </>
+                  ) : (
+                    <>
+                      Send message <ArrowRight className="ml-2 size-4" />
+                    </>
+                  )}
                 </Button>
-                <p className="text-[#888880] text-xs text-center mt-1">
-                  Gmail opens with the recipient and message ready to send.
-                </p>
+                {contactError && (
+                  <p className="text-[#ff3b30] text-xs text-center mt-1">
+                    {contactError}
+                  </p>
+                )}
+                {contactSent && (
+                  <p className="text-[#00d26a] text-xs text-center mt-1 font-medium">
+                    Message sent. Thank you for getting in touch.
+                  </p>
+                )}
               </form>
             </motion.div>
           </div>

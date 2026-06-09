@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   ArrowUpRight, ArrowDownLeft, Copy, Check,
-  ExternalLink, Loader2, TrendingUp,
+  ExternalLink, Loader2, TrendingUp, RefreshCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuthStore, BalanceEntry } from "@/store/useStore";
@@ -80,9 +80,9 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [solPrice, setSolPrice] = useState(0);
 
-  const loadBalances = useCallback(async () => {
+  const loadBalances = useCallback(async (showLoading = false) => {
     if (!token) return;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const data = await fetchApi<BalanceEntry[]>("/wallet/balance", { token });
       setLocalBalances(data);
@@ -108,11 +108,18 @@ export default function Dashboard() {
   }, [token, network]);
 
   useEffect(() => {
-    loadBalances();
+    loadBalances(true);
     loadTransactions();
     fetchSolPrice().then(setSolPrice);
+    const balanceInterval = setInterval(loadBalances, 15_000);
     const priceInterval = setInterval(() => fetchSolPrice().then(setSolPrice), 30_000);
-    return () => clearInterval(priceInterval);
+    const refreshOnFocus = () => loadBalances();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => {
+      clearInterval(balanceInterval);
+      clearInterval(priceInterval);
+      window.removeEventListener("focus", refreshOnFocus);
+    };
   }, [loadBalances, loadTransactions, network]);
 
   const totalUsd = balances.reduce((sum, b) => {
@@ -186,7 +193,18 @@ export default function Dashboard() {
 
       {/* ── Assets ── */}
       <section className="flex flex-col gap-3 animate-fade-up animate-fade-up-delay-2">
-        <h2 className="font-display text-lg font-bold text-[#e8e3d5] tracking-tight">Assets</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-lg font-bold text-[#e8e3d5] tracking-tight">Assets</h2>
+          <button
+            type="button"
+            onClick={() => loadBalances(true)}
+            disabled={loading}
+            className="flex items-center gap-2 text-xs text-[#888880] hover:text-white disabled:opacity-50 transition-colors"
+          >
+            <RefreshCcw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
         <Card className="overflow-hidden">
           {loading ? (
             <div className="p-5 flex flex-col gap-4">

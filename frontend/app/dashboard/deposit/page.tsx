@@ -8,18 +8,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fetchApi } from "@/lib/api";
-import dynamic from "next/dynamic";
-
-const MoonPayProvider = dynamic(
-  () => import("@moonpay/moonpay-react").then((mod) => mod.MoonPayProvider),
-  { ssr: false }
-);
-
-const MoonPayBuyWidget = dynamic(
-  () => import("@moonpay/moonpay-react").then((mod) => mod.MoonPayBuyWidget),
-  { ssr: false }
-);
-
 interface Quote {
   quoteCurrencyAmount: number;
   feeAmount: number;
@@ -40,8 +28,8 @@ export default function DepositPage() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showMoonPay, setShowMoonPay] = useState(false);
-  const [isTestModeSimulated, setIsTestModeSimulated] = useState(false);
+  const moonPayPublicKey = process.env.NEXT_PUBLIC_MOONPAY_PK || "";
+  const isMoonPaySandbox = moonPayPublicKey.startsWith("pk_test_");
 
   const handleCopy = async () => {
     if (!user?.public_key) return;
@@ -52,17 +40,10 @@ export default function DepositPage() {
 
   // Fetch limits when currency changes
   useEffect(() => {
-    setIsTestModeSimulated(false);
+    setLimits(null);
     fetchApi<Limits>(`/moonpay/limits?currency_code=${currency}`, { token })
       .then(setLimits)
-      .catch((err) => {
-        console.warn("MoonPay limits fetch failed, using fallback:", err);
-        setIsTestModeSimulated(true);
-        setLimits({
-          baseCurrencyMinBuyAmount: 30,
-          baseCurrencyMaxBuyAmount: 2000,
-        });
-      });
+      .catch(() => setLimits(null));
   }, [currency, token]);
 
   // Fetch quote when amount changes (debounced)
@@ -79,34 +60,36 @@ export default function DepositPage() {
           { token }
         );
         setQuote(data);
-      } catch (err) {
-        console.warn("MoonPay quote fetch failed, simulating quote:", err);
-        setIsTestModeSimulated(true);
-        // Simulate a realistic quote for demo/sandbox purposes using SOL real price
-        const fiat = parseFloat(amount) || 0;
-        const fee = fiat * 0.038 > 3.99 ? fiat * 0.038 : 3.99;
-        const rate = currency === "SOL" ? 82.55 : 1.0;
-        const cryptoAmount = (fiat - fee) / rate;
-        setQuote({
-          quoteCurrencyAmount: cryptoAmount,
-          feeAmount: fee,
-          totalAmount: fiat,
-        });
+      } catch {
+        setQuote(null);
       }
     }, 500);
     return () => clearTimeout(timer);
   }, [amount, currency, limits, token]);
 
-  const handleBuy = useCallback(() => {
-    setShowMoonPay(true);
-  }, []);
+  const handleBuy = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { signed_url } = await fetchApi<{ signed_url: string }>("/moonpay/sign-url", {
+        method: "POST",
+        token,
+        body: {
+          currency_code: currency,
+          base_currency_code: "usd",
+          base_currency_amount: Number(amount),
+        },
+      });
+      window.open(signed_url, "moonpay", "width=480,height=760");
+    } catch {
+      // Keep provider and configuration errors out of the customer-facing UI.
+    } finally {
+      setLoading(false);
+    }
+  }, [amount, currency, token]);
 
   if (!user) return null;
 
   return (
-    <MoonPayProvider
-      apiKey={process.env.NEXT_PUBLIC_MOONPAY_PK || "pk_test_123"}
-    >
       <div className="flex flex-col max-w-lg mx-auto w-full">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -162,14 +145,21 @@ export default function DepositPage() {
                   </button>
                   <button
                     onClick={() => setCurrency("USDC_SOL")}
+                    disabled={isMoonPaySandbox}
+                    title={isMoonPaySandbox ? "USDC is not supported by MoonPay sandbox" : undefined}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${currency === "USDC_SOL"
                       ? "bg-[#EA3A59] text-white shadow-[0_0_15px_rgba(234,58,89,0.3)]"
-                      : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06]"
+                      : "bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] border border-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
                       }`}
                   >
-                    USDC
+                    {isMoonPaySandbox ? "USDC · Live only" : "USDC"}
                   </button>
                 </div>
+                {isMoonPaySandbox && (
+                  <p className="text-xs text-zinc-600 mt-2">
+                    MoonPay sandbox supports SOL on Solana Testnet. USDC requires approved live MoonPay keys.
+                  </p>
+                )}
               </div>
 
               {/* Amount Input */}
@@ -208,13 +198,6 @@ export default function DepositPage() {
                 )}
               </div>
 
-              {/* Simulated Notice */}
-              {isTestModeSimulated && (
-                <div className="mb-4 p-3.5 rounded-xl bg-amber-500/[0.06] border border-amber-500/15 text-amber-400 text-xs leading-relaxed">
-                  ⚠️ <strong>Test Key Mode:</strong> MoonPay API is running in test mode. Real-time rates and min/max limits are simulated using current SOL rates ($82.55).
-                </div>
-              )}
-
               {/* Quote Preview */}
               {quote && (
                 <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4 mb-5">
@@ -251,17 +234,6 @@ export default function DepositPage() {
                   <><CreditCard className="w-5 h-5" /> Buy {currency === "SOL" ? "SOL" : "USDC"} with Card</>
                 )}
               </Button>
-
-              {/* MoonPay Official Overlay */}
-              <MoonPayBuyWidget
-                variant="overlay"
-                visible={showMoonPay}
-                onCloseOverlay={() => setShowMoonPay(false)}
-                baseCurrencyCode="usd"
-                baseCurrencyAmount={amount}
-                defaultCurrencyCode={currency}
-                walletAddress={user.public_key}
-              />
 
               <p className="text-xs text-zinc-600 mt-3 text-center">
                 Powered by MoonPay
@@ -327,6 +299,5 @@ export default function DepositPage() {
           </motion.div>
         )}
       </div>
-    </MoonPayProvider>
   );
 }
