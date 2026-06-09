@@ -1,8 +1,9 @@
-use actix_web::{web, HttpResponse, Responder};
-use serde::{Deserialize, Serialize};
-use std::fs::{OpenOptions, File};
-use std::io::{Read, Write};
+use actix_web::{HttpResponse, Responder, web};
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use std::path::PathBuf;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ContactPayload {
@@ -21,24 +22,29 @@ pub struct MessageEntry {
 
 pub async fn submit_message(payload: web::Json<ContactPayload>) -> impl Responder {
     let payload = payload.into_inner();
-    println!("📬 New Contact Message Received:");
-    println!("Name: {}", payload.name);
-    println!("Email: {}", payload.email);
-    println!("Message: {}", payload.message);
+    if payload.name.trim().is_empty()
+        || payload.email.trim().is_empty()
+        || payload.message.trim().is_empty()
+    {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "success": false,
+            "message": "Name, email, and message are required."
+        }));
+    }
 
     let entry = MessageEntry {
-        name: payload.name,
-        email: payload.email,
-        message: payload.message,
+        name: payload.name.trim().to_string(),
+        email: payload.email.trim().to_string(),
+        message: payload.message.trim().to_string(),
         timestamp: Utc::now().to_rfc3339(),
     };
 
-    // Save to contact_messages.json in workspace root
-    let filepath = "/Users/deepak/Documents/Project/Tiplink/contact_messages.json";
-    
-    // Read existing messages or create new array
+    let filepath = std::env::var("CONTACT_MESSAGES_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("contact_messages.json"));
+
     let mut messages: Vec<MessageEntry> = Vec::new();
-    if let Ok(mut file) = File::open(filepath) {
+    if let Ok(mut file) = File::open(&filepath) {
         let mut content = String::new();
         if file.read_to_string(&mut content).is_ok() {
             if let Ok(existing) = serde_json::from_str::<Vec<MessageEntry>>(&content) {
@@ -49,20 +55,43 @@ pub async fn submit_message(payload: web::Json<ContactPayload>) -> impl Responde
 
     messages.push(entry);
 
-    // Write back to file
-    if let Ok(mut file) = OpenOptions::new()
+    let serialized = match serde_json::to_string_pretty(&messages) {
+        Ok(serialized) => serialized,
+        Err(error) => {
+            eprintln!("Failed to serialize contact message: {error}");
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "success": false,
+                "message": "Unable to save your message right now. Please email deepaknegi108r@gmail.com."
+            }));
+        }
+    };
+
+    match OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(filepath)
+        .open(&filepath)
     {
-        if let Ok(serialized) = serde_json::to_string_pretty(&messages) {
-            let _ = file.write_all(serialized.as_bytes());
+        Ok(mut file) => {
+            if let Err(error) = file.write_all(serialized.as_bytes()) {
+                eprintln!("Failed to write contact message: {error}");
+                return HttpResponse::InternalServerError().json(serde_json::json!({
+                    "success": false,
+                    "message": "Unable to save your message right now. Please email deepaknegi108r@gmail.com."
+                }));
+            }
+        }
+        Err(error) => {
+            eprintln!("Failed to open contact message file: {error}");
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "success": false,
+                "message": "Unable to save your message right now. Please email deepaknegi108r@gmail.com."
+            }));
         }
     }
 
     HttpResponse::Ok().json(serde_json::json!({
         "success": true,
-        "message": "Thank you! Your message has been saved and sent to the administrator."
+        "message": "Thank you! Your message has been received."
     }))
 }

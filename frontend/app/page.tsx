@@ -124,9 +124,6 @@ export default function LandingPage() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
-  const [contactSent, setContactSent] = useState(false);
-  const [contactLoading, setContactLoading] = useState(false);
-  const [contactError, setContactError] = useState("");
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
 
@@ -152,25 +149,18 @@ export default function LandingPage() {
     }
   };
 
-  const handleContactSubmit = async (e: React.FormEvent) => {
+  const handleContactSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setContactLoading(true);
-    setContactError("");
-    setContactSent(false);
-    try {
-      await fetchApi("/contact", {
-        method: "POST",
-        body: { name: contactName, email: contactEmail, message: contactMessage },
-      });
-      setContactSent(true);
-      setContactName("");
-      setContactEmail("");
-      setContactMessage("");
-    } catch (err: any) {
-      setContactError(err.message || "Failed to send message. Please try again.");
-    } finally {
-      setContactLoading(false);
-    }
+    const subject = encodeURIComponent(`Orbit enquiry from ${contactName}`);
+    const body = encodeURIComponent(
+      `Name: ${contactName}\nEmail: ${contactEmail}\n\n${contactMessage}`
+    );
+
+    const gmailComposeUrl =
+      `https://mail.google.com/mail/?view=cm&fs=1&to=deepaknegi108r@gmail.com` +
+      `&su=${subject}&body=${body}`;
+
+    window.open(gmailComposeUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -183,7 +173,7 @@ export default function LandingPage() {
          ══════════════════════════════════════ */}
       <section
         id="home"
-        className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-20"
+        className="relative min-h-[720px] lg:min-h-[760px] flex flex-col items-center justify-center px-6 pt-28 pb-16"
       >
         {/* Ambient orbs */}
         <div className="orb orb-brand absolute top-[-25%] left-[-15%] w-[55%] h-[55%] animate-float" />
@@ -202,38 +192,36 @@ export default function LandingPage() {
           }}
         />
 
-        <div className="relative z-10 text-center max-w-4xl mx-auto">
+        <div className="relative z-10 text-center max-w-5xl mx-auto">
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
-            className="inline-flex items-center gap-2 rounded-full border border-[#EA3A59]/20 bg-[#EA3A59]/[0.07] px-4 py-1.5 text-xs font-semibold text-[#ff6b84] mb-8 font-display tracking-wide uppercase"
+            className="inline-flex items-center gap-2 rounded-full border border-[#EA3A59]/20 bg-[#EA3A59]/[0.07] px-4 py-1.5 text-xs font-semibold text-[#ff6b84] mb-7 font-display uppercase"
           >
             <Sparkles className="h-3 w-3" />
-            MPC Secured · Built on Solana
+            Secure · Non-custodial · Built on Solana
           </motion.div>
 
-          {/* Headline — OffRadar inspired */}
           <motion.h1
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-            className="font-display text-6xl sm:text-7xl lg:text-[6.5rem] font-bold tracking-[-0.05em] mb-6 leading-[0.95]"
+            className="font-display text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-[0.94] text-balance"
           >
-            <span className="text-white block">SEND</span>
-            <span className="text-white block">CRYPTO</span>
-            <span className="text-brand-gradient block mt-1">WITH A LINK.</span>
+            <span className="text-white block">SEND CRYPTO.</span>
+            <span className="text-brand-gradient block mt-2">SHARE A LINK.</span>
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.7 }}
-            className="text-[#888880] text-lg lg:text-xl mb-10 max-w-lg mx-auto leading-relaxed"
+            className="text-[#888880] text-base sm:text-lg mb-8 max-w-xl mx-auto leading-relaxed text-pretty"
           >
-            No wallets required. Generate a secure Orbit link and send SOL or
-            USDC to anyone over any messenger, instantly.
+            Create a secure link, share it anywhere, and let anyone claim SOL
+            or USDC. No wallet setup required.
           </motion.p>
 
           {/* CTA buttons */}
@@ -268,7 +256,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.6 }}
-            className="flex flex-col sm:flex-row gap-6 justify-center mt-16"
+            className="flex flex-col sm:flex-row gap-5 justify-center mt-12"
           >
             {[
               { icon: Shield, label: "Non-Custodial", sub: "You hold your keys" },
@@ -276,7 +264,7 @@ export default function LandingPage() {
               { icon: Link2, label: "Share Anywhere", sub: "Just copy and paste" },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3 text-sm">
-                <div className="w-9 h-9 rounded-xl border border-[#EA3A59]/20 bg-[#EA3A59]/[0.06] flex items-center justify-center shrink-0">
+                <div className="size-9 rounded-xl border border-[#EA3A59]/20 bg-[#EA3A59]/[0.06] flex items-center justify-center shrink-0">
                   <item.icon className="w-4 h-4 text-[#EA3A59]" />
                 </div>
                 <div className="text-left">
@@ -421,11 +409,12 @@ export default function LandingPage() {
             <span className="inline-flex items-center gap-2 rounded-full border border-[#EA3A59]/20 bg-[#EA3A59]/[0.07] px-4 py-1.5 text-xs font-semibold text-[#ff6b84] mb-6 font-display tracking-wide uppercase">
               Contact
             </span>
-            <h2 className="font-display text-4xl sm:text-5xl font-bold tracking-[-0.04em] text-white mb-4">
-              Get in touch
+            <h2 className="font-display text-4xl sm:text-5xl font-bold text-white mb-4 text-balance">
+              Contact Orbit
             </h2>
-            <p className="text-[#888880] text-lg max-w-md mx-auto">
-              Questions, feedback, or partnerships? We'd love to hear from you.
+            <p className="text-[#888880] text-lg max-w-lg mx-auto text-pretty">
+              For product questions, feedback, or partnership enquiries,
+              contact Deepak directly.
             </p>
           </motion.div>
 
@@ -438,17 +427,23 @@ export default function LandingPage() {
               className="flex flex-col gap-6"
             >
               {[
-                { icon: Mail, label: "Email", value: "hello@orbitwallet.io" },
+                { icon: Mail, label: "Email", value: "deepaknegi108r@gmail.com", href: "mailto:deepaknegi108r@gmail.com" },
                 { icon: MapPin, label: "Based in", value: "Decentralized — Everywhere" },
                 { icon: MessageSquare, label: "Response time", value: "Usually within 24 hours" },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-4 p-5 bg-[#0a0a0a] border border-[#EA3A59]/10 rounded-2xl hover:border-[#EA3A59]/20 transition-colors">
-                  <div className="w-10 h-10 rounded-xl bg-[#EA3A59]/10 border border-[#EA3A59]/15 flex items-center justify-center shrink-0">
+                  <div className="size-10 rounded-xl bg-[#EA3A59]/10 border border-[#EA3A59]/15 flex items-center justify-center shrink-0">
                     <item.icon className="w-4 h-4 text-[#EA3A59]" />
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-[#555550] uppercase tracking-wider font-display mb-1">{item.label}</p>
-                    <p className="text-white text-sm font-medium">{item.value}</p>
+                    {item.href ? (
+                      <a className="text-white text-sm font-medium break-all hover:text-[#ff6b84] transition-colors" href={item.href}>
+                        {item.value}
+                      </a>
+                    ) : (
+                      <p className="text-white text-sm font-medium">{item.value}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -500,31 +495,12 @@ export default function LandingPage() {
                     className="flex w-full rounded-xl border border-white/[0.07] bg-[#111111] px-4 py-3 text-sm text-[#e8e3d5] placeholder:text-[#555550] focus-visible:outline-none focus-visible:border-[#EA3A59]/45 focus-visible:ring-[3px] focus-visible:ring-[#EA3A59]/8 transition-all duration-200 resize-none"
                   />
                 </div>
-                <Button type="submit" size="lg" className="w-full mt-2" disabled={contactLoading}>
-                  {contactLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...
-                    </>
-                  ) : contactSent ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 mr-2 text-[#00d26a]" /> Sent!
-                    </>
-                  ) : (
-                    <>
-                      Send Message <ArrowRight className="ml-2 w-4 h-4" />
-                    </>
-                  )}
+                <Button type="submit" size="lg" className="w-full mt-2">
+                  Open Gmail draft <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
-                {contactError && (
-                  <p className="text-[#ff3b30] text-xs text-center mt-2 flex items-center justify-center gap-1">
-                    <XCircle className="w-3.5 h-3.5" /> {contactError}
-                  </p>
-                )}
-                {contactSent && (
-                  <p className="text-[#00d26a] text-xs text-center mt-2 font-medium">
-                    Your message has been saved to contact_messages.json on the server!
-                  </p>
-                )}
+                <p className="text-[#888880] text-xs text-center mt-1">
+                  Gmail opens with the recipient and message ready to send.
+                </p>
               </form>
             </motion.div>
           </div>
