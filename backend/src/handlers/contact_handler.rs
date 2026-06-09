@@ -1,97 +1,82 @@
 use actix_web::{HttpResponse, Responder, web};
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
-use std::path::PathBuf;
+use reqwest::Client;
+use serde::Deserialize;
+use serde_json::json;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct ContactPayload {
     pub name: String,
     pub email: String,
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct MessageEntry {
-    pub name: String,
-    pub email: String,
-    pub message: String,
-    pub timestamp: String,
-}
-
 pub async fn submit_message(payload: web::Json<ContactPayload>) -> impl Responder {
     let payload = payload.into_inner();
-    if payload.name.trim().is_empty()
-        || payload.email.trim().is_empty()
-        || payload.message.trim().is_empty()
-    {
-        return HttpResponse::BadRequest().json(serde_json::json!({
+    let name = payload.name.trim();
+    let email = payload.email.trim();
+    let message = payload.message.trim();
+
+    if name.is_empty() || email.is_empty() || message.is_empty() {
+        return HttpResponse::BadRequest().json(json!({
             "success": false,
             "message": "Name, email, and message are required."
         }));
     }
 
-    let entry = MessageEntry {
-        name: payload.name.trim().to_string(),
-        email: payload.email.trim().to_string(),
-        message: payload.message.trim().to_string(),
-        timestamp: Utc::now().to_rfc3339(),
-    };
-
-    let filepath = std::env::var("CONTACT_MESSAGES_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("contact_messages.json"));
-
-    let mut messages: Vec<MessageEntry> = Vec::new();
-    if let Ok(mut file) = File::open(&filepath) {
-        let mut content = String::new();
-        if file.read_to_string(&mut content).is_ok() {
-            if let Ok(existing) = serde_json::from_str::<Vec<MessageEntry>>(&content) {
-                messages = existing;
-            }
-        }
+    if !email.contains('@') {
+        return HttpResponse::BadRequest().json(json!({
+            "success": false,
+            "message": "Enter a valid email address."
+        }));
     }
 
-    messages.push(entry);
-
-    let serialized = match serde_json::to_string_pretty(&messages) {
-        Ok(serialized) => serialized,
-        Err(error) => {
-            eprintln!("Failed to serialize contact message: {error}");
-            return HttpResponse::InternalServerError().json(serde_json::json!({
-                "success": false,
-                "message": "Unable to save your message right now. Please email deepaknegi108r@gmail.com."
-            }));
-        }
-    };
-
-    match OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&filepath)
-    {
-        Ok(mut file) => {
-            if let Err(error) = file.write_all(serialized.as_bytes()) {
-                eprintln!("Failed to write contact message: {error}");
-                return HttpResponse::InternalServerError().json(serde_json::json!({
-                    "success": false,
-                    "message": "Unable to save your message right now. Please email deepaknegi108r@gmail.com."
-                }));
-            }
-        }
-        Err(error) => {
-            eprintln!("Failed to open contact message file: {error}");
-            return HttpResponse::InternalServerError().json(serde_json::json!({
-                "success": false,
-                "message": "Unable to save your message right now. Please email deepaknegi108r@gmail.com."
-            }));
-        }
+    let api_key = std::env::var("RESEND_API_KEY").unwrap_or_default();
+    if api_key.trim().is_empty() {
+        return HttpResponse::ServiceUnavailable().json(json!({
+            "success": false,
+            "message": "Email delivery is not configured yet. Please email deepaknegi108r@gmail.com directly."
+        }));
     }
 
-    HttpResponse::Ok().json(serde_json::json!({
-        "success": true,
-        "message": "Thank you! Your message has been received."
-    }))
+    let from = std::env::var("RESEND_FROM")
+        .unwrap_or_else(|_| "Orbit Contact <onboarding@resend.dev>".to_string());
+    let to = std::env::var("CONTACT_TO_EMAIL")
+        .unwrap_or_else(|_| "deepaknegi108r@gmail.com".to_string());
+    let email_body = format!("Name: {name}\nEmail: {email}\n\nMessage:\n{message}");
+
+    let response = Client::new()
+        .post("https://api.resend.com/emails")
+        .bearer_auth(api_key)
+        .json(&json!({
+            "from": from,
+            "to": [to],
+            "reply_to": email,
+            "subject": format!("Orbit enquiry from {name}"),
+            "text": email_body
+        }))
+        .send()
+        .await;
+
+    match response {
+        Ok(response) if response.status().is_success() => HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Your message has been sent."
+        })),
+        Ok(response) => {
+            let status = response.status();
+            let error = response.text().await.unwrap_or_default();
+            eprintln!("Resend API error ({status}): {error}");
+            HttpResponse::BadGateway().json(json!({
+                "success": false,
+                "message": "Your message could not be sent. Please email deepaknegi108r@gmail.com directly."
+            }))
+        }
+        Err(error) => {
+            eprintln!("Failed to contact Resend: {error}");
+            HttpResponse::BadGateway().json(json!({
+                "success": false,
+                "message": "Your message could not be sent. Please email deepaknegi108r@gmail.com directly."
+            }))
+        }
+    }
 }

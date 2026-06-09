@@ -1,0 +1,2 @@
+-- Intentionally irreversible: users and MPC vault shares live in separate
+-- databases, so restoring this foreign key would break DKG finalization.

@@ -4,29 +4,103 @@ use crate::error::AppError;
 use crate::db::conn::DbPool;
 use crate::db::balances::Balance;
 use crate::db::user::User;
-use crate::db::transaction::Transaction;
-use crate::services::intent::SendIntent;
+use crate::db::transaction::{NewTransaction, Transaction, TxType};
+use crate::services::mpc::{coordinate_transaction_signature, mpc_config};
 use crate::services::solana::{build_transfer_tx, submit_transaction, to_db_mint, to_client_mint};
-use crate::db::swap::{TransactionIntentEntry, NewTransactionIntent};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::env;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::Transaction as SolanaTransaction};
 use std::str::FromStr;
+use chrono::Utc;
+use std::collections::HashMap;
+
+const TOKEN_PROGRAMS: [&str; 2] = [
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+];
+
+fn token_symbol(mint: &str) -> &str {
+    match mint {
+        "So11111111111111111111111111111111111111112" => "SOL",
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => "USDC",
+        "Es9vMFrzaCERmJfrF4H2FYDapipNi2aBcVBPjL6dLrH" => "USDT",
+        "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh" => "WBTC",
+        _ => "TOKEN",
+    }
+}
+
+async fn get_spl_token_balances(
+    rpc_url: &str,
+    owner: &str,
+) -> Result<HashMap<String, (i64, i16)>, reqwest::Error> {
+    let client = reqwest::Client::new();
+    let mut balances = HashMap::new();
+
+    for program_id in TOKEN_PROGRAMS {
+        let response: serde_json::Value = client
+            .post(rpc_url)
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getTokenAccountsByOwner",
+                "params": [
+                    owner,
+                    { "programId": program_id },
+                    { "encoding": "jsonParsed" }
+                ]
+            }))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        if let Some(accounts) = response.pointer("/result/value").and_then(|value| value.as_array()) {
+            for account in accounts {
+                let info = account.pointer("/account/data/parsed/info");
+                let mint = info.and_then(|value| value.get("mint")).and_then(|value| value.as_str());
+                let amount = info
+                    .and_then(|value| value.pointer("/tokenAmount/amount"))
+                    .and_then(|value| value.as_str())
+                    .and_then(|value| value.parse::<i64>().ok());
+                let decimals = info
+                    .and_then(|value| value.pointer("/tokenAmount/decimals"))
+                    .and_then(|value| value.as_i64())
+                    .and_then(|value| i16::try_from(value).ok());
+
+                if let (Some(mint), Some(amount), Some(decimals)) = (mint, amount, decimals) {
+                    let entry = balances.entry(mint.to_string()).or_insert((0_i64, decimals));
+                    entry.0 = entry.0.saturating_add(amount);
+                }
+            }
+        }
+    }
+
+    Ok(balances)
+}
+
+async fn get_native_sol_balance(rpc_url: &str, owner: &str) -> Result<Option<i64>, reqwest::Error> {
+    let response: serde_json::Value = reqwest::Client::new()
+        .post(rpc_url)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getBalance",
+            "params": [owner]
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    Ok(response.pointer("/result/value").and_then(|value| value.as_i64()))
+}
 
 #[derive(Deserialize)]
 pub struct SendRequest {
     pub to: String,
-    pub amount: String,
+    pub amount: f64,
     pub mint: String,
-    pub timestamp: i64,
-    pub signature: String,
-}
-
-#[derive(Deserialize)]
-pub struct SubmitRequest {
-    pub nonce: Uuid,
-    pub signed_tx: Vec<u8>,
 }
 
 #[derive(Deserialize)]
@@ -71,20 +145,28 @@ pub async fn get_balance(
 
     // Sync on-chain SOL balance for the active network
     let rpc_url = solana_rpc_url(&req);
-    let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(rpc_url);
-    if let Ok(pubkey) = Pubkey::from_str(&user_pubkey) {
-        if let Ok(sol_balance) = rpc_client.get_balance(&pubkey).await {
-            let db_sol_mint = if is_devnet {
-                "devnet_So1111111111111111111111111111111111111"
-            } else {
-                "So11111111111111111111111111111111111111112"
-            };
-            let _ = Balance::sync_sol_balance(&mut conn, user_id, db_sol_mint, sol_balance as i64);
+    if Pubkey::from_str(&user_pubkey).is_ok() {
+        if let Ok(Some(sol_balance)) = get_native_sol_balance(&rpc_url, &user_pubkey).await {
+            let db_sol_mint = to_db_mint("So11111111111111111111111111111111111111112", is_devnet);
+            Balance::sync_onchain_balance(&mut conn, user_id, &db_sol_mint, "SOL", sol_balance, 9)?;
+        }
+        if let Ok(token_balances) = get_spl_token_balances(&rpc_url, &user_pubkey).await {
+            for (mint, (amount, decimals)) in token_balances {
+                let db_mint = to_db_mint(&mint, is_devnet);
+                Balance::sync_onchain_balance(
+                    &mut conn,
+                    user_id,
+                    &db_mint,
+                    token_symbol(&mint),
+                    amount,
+                    decimals,
+                )?;
+            }
         }
     }
 
     let db_balances = Balance::get_user_balances(&mut conn, user_id)?;
-    let filtered_balances: Vec<Balance> = db_balances
+    let filtered_balances: Vec<serde_json::Value> = db_balances
         .into_iter()
         .filter(|b| {
             if is_devnet {
@@ -93,9 +175,17 @@ pub async fn get_balance(
                 !b.token_mint.starts_with("devnet_")
             }
         })
-        .map(|mut b| {
-            b.token_mint = to_client_mint(&b.token_mint);
-            b
+        .map(|b| {
+            serde_json::json!({
+                "id": b.id,
+                "mint": to_client_mint(&b.token_mint),
+                "symbol": b.token_symbol,
+                "amount": b.amount,
+                "available": b.available,
+                "locked": b.locked,
+                "decimals": b.decimals,
+                "updated_at": b.updated_at,
+            })
         })
         .collect();
 
@@ -119,8 +209,29 @@ pub async fn send(
         false
     };
     let db_mint = to_db_mint(&body.mint, is_devnet);
-    
-    let amount_u64: u64 = body.amount.parse().map_err(|_| AppError::BadRequest("Invalid amount format".to_string()))?;
+
+    if body.mint != "So11111111111111111111111111111111111111112" {
+        return Err(AppError::BadRequest(
+            "Direct transfers currently support SOL only.".to_string(),
+        ));
+    }
+
+    if !body.amount.is_finite() || body.amount <= 0.0 {
+        return Err(AppError::BadRequest("Enter a valid SOL amount.".to_string()));
+    }
+
+    let lamports = (body.amount * 1_000_000_000.0).round();
+    if lamports < 1.0 {
+        return Err(AppError::BadRequest("Amount is below one lamport.".to_string()));
+    }
+    if lamports > i64::MAX as f64 {
+        return Err(AppError::BadRequest("Amount is too large.".to_string()));
+    }
+    let amount_u64 = lamports as u64;
+
+    Pubkey::from_str(&body.to)
+        .map_err(|_| AppError::BadRequest("Enter a valid Solana wallet address.".to_string()))?;
+
     let balance = Balance::get_token_balance(&mut conn, user_id, &db_mint)?
         .ok_or_else(|| AppError::BadRequest("Token balance not found".to_string()))?;
         
@@ -130,62 +241,48 @@ pub async fn send(
     
     let rpc_url = solana_rpc_url(&req);
     let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(rpc_url);
-    let unsigned_tx = build_transfer_tx(&rpc_client, &user_pubkey, &body.to, amount_u64).await?;
-    let payload_b64 = BASE64.encode(&unsigned_tx);
-    
-    let nonce = Uuid::new_v4();
-    let intent_meta = format!("SEND|{}|{}|{}", body.to, body.amount, db_mint);
-    let new_intent = NewTransactionIntent {
-        id: nonce,
-        user_id: Some(user_id),
-        intent_message: &intent_meta,
-        intent_signature: &body.signature,
-        unsigned_payload: Some(&payload_b64),
-        status: Some("pending"),
-    };
-    TransactionIntentEntry::create_intent(&mut conn, new_intent)
-        .map_err(|_| AppError::InternalServerError("Failed to map transaction intent".to_string()))?;
-    
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "nonce": nonce,
-        "unsigned_tx": payload_b64
-    })))
-}
+    let unsigned_tx_b64 = build_transfer_tx(&rpc_client, &user_pubkey, &body.to, amount_u64).await?;
+    let unsigned_tx_bytes = BASE64.decode(&unsigned_tx_b64)
+        .map_err(|_| AppError::InternalServerError("Failed to decode unsigned transaction.".to_string()))?;
+    let mut transaction: SolanaTransaction = bincode::deserialize(&unsigned_tx_bytes)
+        .map_err(|_| AppError::InternalServerError("Failed to parse unsigned transaction.".to_string()))?;
 
-pub async fn submit_send(
-    pool: web::Data<DbPool>,
-    req: HttpRequest,
-    body: web::Json<SubmitRequest>
-) -> Result<HttpResponse, AppError> {
-    let mut conn = pool.get().map_err(|_| AppError::InternalServerError("Database connection failed".into()))?;
-    let user_uuid = req.extensions().get::<Uuid>().cloned()
-        .ok_or_else(|| AppError::Unauthorized("Not logged in".to_string()))?;
+    let signature_bytes = coordinate_transaction_signature(
+        &mpc_config()?,
+        user_id,
+        &transaction.message_data(),
+    ).await?;
+    let signature = Signature::try_from(signature_bytes.as_slice())
+        .map_err(|_| AppError::InternalServerError("MPC returned an invalid Solana signature.".to_string()))?;
 
-    use crate::db::schema::transaction_intents::dsl::*;
-    use diesel::prelude::*;
-    let pending = transaction_intents
-        .filter(id.eq(body.nonce))
-        .first::<TransactionIntentEntry>(&mut conn)
-        .map_err(|_| AppError::BadRequest("Invalid or expired pending_tx nonce".to_string()))?;
-    
-    let intent_parts: Vec<&str> = pending.intent_message.split('|').collect();
-    let (original_mint, original_amount) = if intent_parts.len() >= 4 {
-        (intent_parts[3].to_string(), intent_parts[2].parse::<i64>().unwrap_or(0))
-    } else {
-        return Err(AppError::InternalServerError("Corrupt intent message format".into()));
+    if transaction.signatures.is_empty() {
+        return Err(AppError::InternalServerError("Transaction has no signer slot.".to_string()));
+    }
+    transaction.signatures[0] = signature;
+
+    let signed_tx_b64 = BASE64.encode(
+        bincode::serialize(&transaction)
+            .map_err(|_| AppError::InternalServerError("Failed to serialize signed transaction.".to_string()))?
+    );
+    let tx_hash = submit_transaction(&rpc_client, &signed_tx_b64).await?;
+
+    Balance::subtract_balance(&mut conn, user_id, &db_mint, amount_u64 as i64)?;
+    let new_tx = NewTransaction {
+        user_id,
+        amount: amount_u64 as i64,
+        token_mint: &db_mint,
+        token_symbol: "SOL",
+        tx_hash: &tx_hash,
+        tx_type: TxType::Transfer,
+        from_address: &user_pubkey,
+        to_address: &body.to,
+        slot: 0,
+        block_time: Utc::now(),
     };
-        
-    let rpc_url = solana_rpc_url(&req);
-    let rpc_client = solana_client::nonblocking::rpc_client::RpcClient::new(rpc_url);
-    let sig = submit_transaction(&rpc_client, &String::from_utf8(body.signed_tx.clone()).unwrap_or_default()).await?;
-    
-    let _ = Balance::subtract_balance(&mut conn, user_uuid, &original_mint, original_amount);
-    
-    diesel::delete(transaction_intents.filter(id.eq(body.nonce))).execute(&mut conn)
-        .map_err(|_| AppError::InternalServerError("Failed to clear intent lock cleanly".to_string()))?;
-        
+    Transaction::insert_tx(&mut conn, new_tx)?;
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "signature": sig
+        "signature": tx_hash
     })))
 }
 

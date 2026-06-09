@@ -60,33 +60,12 @@ pub async fn submit_transaction(
 
 pub fn to_db_mint(mint: &str, is_devnet: bool) -> String {
     if is_devnet {
-        if mint == "So11111111111111111111111111111111111111112" {
-            "devnet_So1111111111111111111111111111111111111".to_string()
-        } else if mint == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" {
-            "devnet_EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZw".to_string()
-        } else {
-            if mint.starts_with("devnet_") {
-                mint.to_string()
-            } else {
-                let trimmed = if mint.len() > 37 { &mint[..37] } else { mint };
-                format!("devnet_{}", trimmed)
-            }
-        }
+        if mint.starts_with("devnet_") { mint.to_string() } else { format!("devnet_{}", mint) }
     } else {
         mint.to_string()
     }
 }
 
 pub fn to_client_mint(mint: &str) -> String {
-    if mint.starts_with("devnet_") {
-        if mint == "devnet_So1111111111111111111111111111111111111" {
-            "So11111111111111111111111111111111111111112".to_string()
-        } else if mint == "devnet_EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZw" {
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()
-        } else {
-            mint.replace("devnet_", "")
-        }
-    } else {
-        mint.to_string()
-    }
+    mint.strip_prefix("devnet_").unwrap_or(mint).to_string()
 }

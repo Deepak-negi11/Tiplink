@@ -43,7 +43,7 @@ pub async fn signup(
     let dkg_conf = mpc_config()?;
     let public_key = generate_keypair(&dkg_conf, user_id).await
         .map_err(|e| {
-            let err_msg = format!("Distributed key generation failed. MPC nodes may be offline: {}", e);
+            let err_msg = format!("Distributed key generation failed: {}", e);
             println!("SIGNUP ERROR: {}", err_msg);
             AppError::InternalServerError(err_msg)
         })?;
@@ -53,10 +53,20 @@ pub async fn signup(
     let secret = jwt_secret();
     let token = generate_access_token(user.id, &secret)
         .map_err(|_| AppError::InternalServerError("Token generation failed".to_string()))?;
+    let refresh_token_raw = generate_refresh_token();
+    let hashed_refresh = hash_token(&refresh_token_raw);
+    Session::create_session(&mut conn, crate::db::session::NewSession {
+        id: Uuid::new_v4(),
+        user_id: user.id,
+        refresh_token: &hashed_refresh,
+        device_info: None,
+        ip_address: None,
+        expires_at: Utc::now() + TimeDelta::try_days(30).unwrap_or_default(),
+    })?;
 
     Ok(HttpResponse::Ok().json(AuthResponse {
         token,
-        refresh_token: None,
+        refresh_token: Some(refresh_token_raw),
         user_id: user.id,
         email: user.email,
         public_key: user.public_key,
@@ -87,7 +97,7 @@ pub async fn signin(
     let refresh_token_raw = generate_refresh_token();
     let hashed_refresh = hash_token(&refresh_token_raw);
     
-    let expires = Utc::now() + TimeDelta::try_days(7).unwrap_or_default();
+    let expires = Utc::now() + TimeDelta::try_days(30).unwrap_or_default();
     let new_session = crate::db::session::NewSession {
         id: Uuid::new_v4(),
         user_id: user.id,

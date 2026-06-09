@@ -56,28 +56,26 @@ pub async fn sign_url(
     let pub_key = moonpay_publishable_key()?;
     let secret_key = moonpay_secret_key()?;
 
-    let base_url = if let Some(net) = req.headers().get("x-network") {
-        if net.to_str().unwrap_or("").to_lowercase() == "devnet" {
-            "https://buy-sandbox.moonpay.com"
-        } else {
-            "https://buy.moonpay.com"
-        }
+    let base_url = if pub_key.starts_with("pk_live_") {
+        "https://buy.moonpay.com"
     } else {
         "https://buy-sandbox.moonpay.com"
     };
 
+    let currency_code = body.currency_code.to_lowercase();
+    let base_currency_code = body.base_currency_code.to_lowercase();
     let widget_url = moonpay::build_widget_url(
         &pub_key,
         &user.public_key,
-        &body.currency_code,
-        &body.base_currency_code,
+        &currency_code,
+        &base_currency_code,
         body.base_currency_amount,
         base_url,
     );
 
     let signed_url = moonpay::sign_url(&widget_url, &secret_key)?;
 
-    let limits = moonpay::get_currency_limit(&pub_key, &body.currency_code).await?;
+    let limits = moonpay::get_currency_limit(&pub_key, &currency_code).await?;
 
     Ok(HttpResponse::Ok().json(SignUrlResponse { signed_url, limits }))
 }
@@ -96,11 +94,13 @@ pub async fn get_quote(
     query: web::Query<QuoteQuery>,
 ) -> Result<HttpResponse, AppError> {
     let pub_key = moonpay_publishable_key()?;
+    let currency_code = query.currency_code.to_lowercase();
+    let fiat_currency = query.fiat_currency.to_lowercase();
 
     let quote = moonpay::get_buy_quote(
         &pub_key,
-        &query.currency_code,
-        &query.fiat_currency,
+        &currency_code,
+        &fiat_currency,
         query.fiat_amount,
     )
     .await?;
@@ -120,8 +120,9 @@ pub async fn get_limits(
     query: web::Query<LimitsQuery>,
 ) -> Result<HttpResponse, AppError> {
     let pub_key = moonpay_publishable_key()?;
+    let currency_code = query.currency_code.to_lowercase();
 
-    let limits = moonpay::get_currency_limit(&pub_key, &query.currency_code).await?;
+    let limits = moonpay::get_currency_limit(&pub_key, &currency_code).await?;
 
     Ok(HttpResponse::Ok().json(limits))
 }

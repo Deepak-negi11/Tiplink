@@ -18,7 +18,7 @@ async fn main() -> std::io::Result<()> {
         let cors = Cors::default()
             .allow_any_origin()
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
-            .allowed_headers(vec!["Content-Type", "Authorization"])
+            .allowed_headers(vec!["Content-Type", "Authorization", "x-network"])
             .max_age(3600);
 
         App::new()
